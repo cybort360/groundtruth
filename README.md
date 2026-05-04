@@ -3,7 +3,7 @@
 > During a crisis, conflicting information kills.
 > GroundTruth weighs every report against every other and tells you what's actually happening, even when the internet is down.
 
-**Built for the [Gemma 4 Good Hackathon](https://www.kaggle.com/competitions/gemma-long-context) on Kaggle.**
+**Built for the [Gemma 4 Good Hackathon](https://www.kaggle.com/competitions/gemma-4-good-hackathon) on Kaggle.**
 
 ---
 
