@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import LocationPickerLoader from "./LocationPickerLoader";
 
 type ReportMode = "photo" | "voice" | "text";
 
@@ -21,8 +22,7 @@ interface LocationState {
   status: "acquiring" | "acquired" | "failed";
   latitude?: number;
   longitude?: number;
-  manualLat?: string;
-  manualLng?: string;
+  placeName?: string | null;
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -83,6 +83,9 @@ export default function ReportForm() {
     status: "acquiring",
   });
 
+  // Location map picker
+  const [showPicker, setShowPicker] = useState(false);
+
   // Submit state
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
@@ -103,7 +106,10 @@ export default function ReportForm() {
         });
       },
       () => {
+        // GPS failed — open the map picker immediately so the user
+        // doesn't hit a dead end
         setLocation({ status: "failed" });
+        setShowPicker(true);
       },
       { timeout: 10000 }
     );
@@ -199,13 +205,12 @@ export default function ReportForm() {
   }, []);
 
   const getEffectiveLocation = (): { latitude: number; longitude: number } | null => {
-    if (location.status === "acquired" && location.latitude !== undefined && location.longitude !== undefined) {
+    if (
+      location.status === "acquired" &&
+      location.latitude !== undefined &&
+      location.longitude !== undefined
+    ) {
       return { latitude: location.latitude, longitude: location.longitude };
-    }
-    if (location.status === "failed") {
-      const lat = parseFloat(location.manualLat ?? "");
-      const lng = parseFloat(location.manualLng ?? "");
-      if (!isNaN(lat) && !isNaN(lng)) return { latitude: lat, longitude: lng };
     }
     return null;
   };
@@ -273,6 +278,7 @@ export default function ReportForm() {
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl(null);
     setTextContent("");
+    setShowPicker(false);
     setSubmitResult(null);
     setSubmitError(null);
   };
@@ -550,9 +556,22 @@ export default function ReportForm() {
         </div>
       )}
 
-      {/* Location status */}
+      {/* Location section */}
       <div className="mb-5">
-        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Location</p>
+        <div className="flex items-center justify-between mb-1.5">
+          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Location</p>
+          {/* Allow re-picking location even after GPS lock */}
+          {location.status === "acquired" && (
+            <button
+              onClick={() => setShowPicker(true)}
+              className="text-[11px] font-semibold text-teal-600 hover:text-teal-700"
+            >
+              Move pin
+            </button>
+          )}
+        </div>
+
+        {/* Acquiring GPS */}
         {location.status === "acquiring" && (
           <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-200">
             <svg className="animate-spin h-4 w-4 text-teal-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" aria-hidden="true">
@@ -562,51 +581,82 @@ export default function ReportForm() {
             Acquiring GPS location…
           </div>
         )}
-        {location.status === "acquired" && (
-          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5">
+
+        {/* GPS acquired — show name + coords, offer map adjustment */}
+        {location.status === "acquired" && !showPicker && (
+          <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5">
             <svg className="w-4 h-4 text-emerald-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
               <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
             </svg>
-            <span className="text-xs font-mono text-emerald-700">
-              {location.latitude?.toFixed(5)}, {location.longitude?.toFixed(5)}
+            <div className="flex-1 min-w-0">
+              {location.placeName ? (
+                <p className="text-xs font-medium text-emerald-800 truncate">{location.placeName}</p>
+              ) : null}
+              <p className="text-[10px] font-mono text-emerald-600">
+                {location.latitude?.toFixed(5)}, {location.longitude?.toFixed(5)}
+              </p>
+            </div>
+            <span className="text-[10px] font-bold text-emerald-600 flex-shrink-0 bg-emerald-100 px-1.5 py-0.5 rounded-full">
+              GPS
             </span>
-            <span className="ml-auto text-[10px] text-emerald-600 font-semibold">GPS locked</span>
           </div>
         )}
-        {location.status === "failed" && (
-          <div className="space-y-2.5">
-            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
-              GPS unavailable — enter coordinates manually
-            </p>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="text-xs text-slate-500 mb-1 block font-medium">Latitude</label>
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="e.g. 6.4481"
-                  value={location.manualLat ?? ""}
-                  onChange={(e) =>
-                    setLocation((prev) => ({ ...prev, manualLat: e.target.value }))
-                  }
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="text-xs text-slate-500 mb-1 block font-medium">Longitude</label>
-                <input
-                  type="number"
-                  step="any"
-                  placeholder="e.g. 3.4745"
-                  value={location.manualLng ?? ""}
-                  onChange={(e) =>
-                    setLocation((prev) => ({ ...prev, manualLng: e.target.value }))
-                  }
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
+
+        {/* GPS failed — prompt to open map picker */}
+        {location.status === "failed" && !showPicker && (
+          <button
+            onClick={() => setShowPicker(true)}
+            className="w-full flex items-center gap-3 bg-amber-50 border border-amber-200 border-dashed rounded-xl px-4 py-4 hover:bg-amber-100/60 transition-colors text-left"
+          >
+            <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-amber-600">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
             </div>
-          </div>
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Tap to pin your location</p>
+              <p className="text-xs text-amber-600 mt-0.5">GPS unavailable — pick on map instead</p>
+            </div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+              className="w-4 h-4 text-amber-400 ml-auto flex-shrink-0">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </button>
+        )}
+
+        {/* Retry GPS (always shown when status is failed and picker is closed) */}
+        {location.status === "failed" && !showPicker && (
+          <button
+            onClick={() => {
+              setLocation({ status: "acquiring" });
+              navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                  setLocation({ status: "acquired", latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+                  setShowPicker(false);
+                },
+                () => setLocation({ status: "failed" }),
+                { timeout: 10000 }
+              );
+            }}
+            className="mt-2 text-xs font-medium text-slate-500 hover:text-teal-600 transition-colors"
+          >
+            ↺ Retry GPS
+          </button>
+        )}
+
+        {/* Map picker — shown inline when open */}
+        {showPicker && (
+          <LocationPickerLoader
+            initialLat={location.latitude}
+            initialLng={location.longitude}
+            onConfirm={(lat, lng, name) => {
+              setLocation({ status: "acquired", latitude: lat, longitude: lng, placeName: name });
+              setShowPicker(false);
+            }}
+            onCancel={() => setShowPicker(false)}
+          />
         )}
       </div>
 
