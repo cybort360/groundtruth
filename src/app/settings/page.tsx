@@ -19,22 +19,44 @@ interface SettingsState {
 
 type TestResult = { ok: boolean; message: string } | null;
 
-const BACKEND_OPTIONS: { value: BackendType; label: string; desc: string; icon: string }[] = [
+// SVG icons for backend options — rendered inline so no emoji font rendering differences
+const BackendIcons: Record<BackendType, React.ReactNode> = {
+  auto: (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8}
+      strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+      <circle cx="10" cy="10" r="8" />
+      <path d="M10 6v4l2.5 2.5" />
+    </svg>
+  ),
+  ollama: (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8}
+      strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+      <rect x="2" y="3" width="16" height="11" rx="1.5" />
+      <path d="M6 17h8M10 14v3" />
+    </svg>
+  ),
+  google: (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8}
+      strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+      <path d="M17.5 10.5a5.5 5.5 0 1 0-5.5 5.5" />
+      <path d="M14 13l3.5 3.5M17.5 13l-3.5 3.5" />
+    </svg>
+  ),
+};
+
+const BACKEND_OPTIONS: { value: BackendType; label: string; desc: string }[] = [
   {
     value: "auto",
-    icon: "⚡",
     label: "Auto",
     desc: "Try Ollama first, fall back to Google API. Best default.",
   },
   {
     value: "ollama",
-    icon: "🖥️",
     label: "Ollama (Local)",
     desc: "100% offline. Requires Ollama running locally with gemma4:e4b pulled.",
   },
   {
     value: "google",
-    icon: "☁️",
     label: "Google Gemma API",
     desc: "Works on any device with internet. Requires a free Google AI Studio key.",
   },
@@ -190,8 +212,10 @@ export default function SettingsPage() {
                   className="mt-0.5 accent-teal-600"
                 />
                 <div>
-                  <div className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
-                    <span>{opt.icon}</span>
+                  <div className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                    <span className={settings.backend === opt.value ? "text-teal-600" : "text-slate-400"}>
+                      {BackendIcons[opt.value]}
+                    </span>
                     {opt.label}
                   </div>
                   <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">{opt.desc}</div>
@@ -204,7 +228,14 @@ export default function SettingsPage() {
         {/* Ollama config */}
         {(settings.backend === "ollama" || settings.backend === "auto") && (
           <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-            <h2 className="text-sm font-bold text-slate-900">🖥️ Ollama Configuration</h2>
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8}
+                strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-slate-400">
+                <rect x="2" y="3" width="16" height="11" rx="1.5" />
+                <path d="M6 17h8M10 14v3" />
+              </svg>
+              Ollama Configuration
+            </h2>
 
             <div className="space-y-3">
               <div>
@@ -243,7 +274,14 @@ export default function SettingsPage() {
         {/* Google API config */}
         {(settings.backend === "google" || settings.backend === "auto") && (
           <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
-            <h2 className="text-sm font-bold text-slate-900">☁️ Google Gemma API</h2>
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8}
+                strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-slate-400">
+                <path d="M3 10a7 7 0 1 0 14 0A7 7 0 0 0 3 10z" />
+                <path d="M3 10h14M10 3a10 10 0 0 1 0 14M10 3a10 10 0 0 0 0 14" />
+              </svg>
+              Google Gemma API
+            </h2>
 
             <div className="space-y-3">
               <div>
@@ -330,8 +368,13 @@ export default function SettingsPage() {
 
         {/* PWA install hint */}
         <section className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-1.5">
-          <h3 className="text-sm font-semibold text-amber-900 flex items-center gap-1.5">
-            📲 Install as offline app
+          <h3 className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8}
+              strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 flex-shrink-0">
+              <rect x="5" y="1" width="10" height="18" rx="2" />
+              <path d="M10 15h.01" />
+            </svg>
+            Install as offline app
           </h3>
           <p className="text-xs text-amber-800 leading-relaxed">
             GroundTruth is a Progressive Web App. In Chrome or Safari, tap{" "}

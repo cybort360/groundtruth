@@ -20,7 +20,7 @@ export default function ReportPage() {
           <div className="flex-1 min-w-0">
             <h1 className="text-sm font-bold text-white leading-tight">Submit Report</h1>
             <p className="text-[11px] text-teal-200 leading-tight">
-              Analyzed locally — no data leaves your network
+              Analyzed locally. No data leaves your network.
             </p>
           </div>
         </div>

@@ -1,12 +1,12 @@
 /**
- * Demo Seed Script — Lagos Flooding Scenario
+ * Demo Seed Script - Lagos Flooding Scenario
  *
  * Populates the SQLite database with a realistic flooding demo so judges
  * see a working dashboard on arrival.
  *
  * Two modes:
- *   Live path   — Ollama reachable → full AI pipeline (normalize → score → reason)
- *   Fallback path — Ollama unreachable → insert pre-cooked signals + events directly
+ *   Live path   - Ollama reachable → full AI pipeline (normalize → score → reason)
+ *   Fallback path - Ollama unreachable → insert pre-cooked signals + events directly
  *
  * Usage:  npx tsx src/lib/seed-demo.ts
  */
@@ -128,11 +128,11 @@ function buildReports(): Report[] {
 }
 
 // ---------------------------------------------------------------------------
-// Live path — full AI pipeline
+// Live path - full AI pipeline
 // ---------------------------------------------------------------------------
 
 async function seedWithOllama(reports: Report[]): Promise<void> {
-  console.log("[seed] Ollama reachable — running full AI pipeline");
+  console.log("[seed] Ollama reachable - running full AI pipeline");
 
   for (const report of reports) {
     console.log(
@@ -162,7 +162,7 @@ async function seedWithOllama(reports: Report[]): Promise<void> {
       );
       signal.credibilityScore = 0.5;
       signal.credibilityReasoning =
-        "Credibility scoring unavailable — default score assigned.";
+        "Credibility scoring unavailable - default score assigned.";
     }
 
     console.log(
@@ -175,7 +175,7 @@ async function seedWithOllama(reports: Report[]): Promise<void> {
   try {
     const result = await runReasoning();
     console.log(
-      `[seed] Reasoning complete — ${result.events.length} event(s), ${result.conflictsDetected} conflict(s)`
+      `[seed] Reasoning complete - ${result.events.length} event(s), ${result.conflictsDetected} conflict(s)`
     );
   } catch (err) {
     console.log(
@@ -185,11 +185,11 @@ async function seedWithOllama(reports: Report[]): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Fallback path — pre-cooked data, no AI calls
+// Fallback path - pre-cooked data, no AI calls
 // ---------------------------------------------------------------------------
 
 function seedFallback(): void {
-  console.log("[seed] Ollama unreachable — inserting pre-cooked fallback data");
+  console.log("[seed] Ollama unreachable - inserting pre-cooked fallback data");
 
   const reports = buildReports();
 
@@ -328,10 +328,10 @@ function seedFallback(): void {
     fallbackSignals[6], // G
   ];
 
-  console.log("[seed]   Inserting event: Severe flooding — Lekki-Epe Expressway underpass");
+  console.log("[seed]   Inserting event: Severe flooding - Lekki-Epe Expressway underpass");
   upsertEvent({
     id: event1Id,
-    title: "Severe flooding — Lekki-Epe Expressway underpass",
+    title: "Severe flooding - Lekki-Epe Expressway underpass",
     description:
       "Multiple reports confirm severe flooding at the Lekki-Epe underpass. Sensor data validates visual evidence.",
     eventType: "flooding",
@@ -361,10 +361,10 @@ function seedFallback(): void {
     fallbackSignals[5], // F
   ];
 
-  console.log("[seed]   Inserting event: Moderate flooding — Admiralty Way");
+  console.log("[seed]   Inserting event: Moderate flooding - Admiralty Way");
   upsertEvent({
     id: event2Id,
-    title: "Moderate flooding — Admiralty Way",
+    title: "Moderate flooding - Admiralty Way",
     description:
       "Ankle-deep flooding reported on Admiralty Way; most recent voice report indicates water is receding.",
     eventType: "flooding",
@@ -408,11 +408,11 @@ function isAlreadySeeded(): boolean {
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  console.log("[seed] GroundTruth — Lagos flood scenario seed script");
+  console.log("[seed] GroundTruth - Lagos flood scenario seed script");
 
   // 1. Already seeded?
   if (isAlreadySeeded()) {
-    console.log("[seed] Already seeded — database contains Lagos-area signals. Exiting.");
+    console.log("[seed] Already seeded - database contains Lagos-area signals. Exiting.");
     process.exit(0);
   }
 
@@ -441,7 +441,7 @@ async function main(): Promise<void> {
   ).c;
 
   console.log(
-    `[seed] Done — ${sigCount} signal(s), ${evtCount} event(s) in database.`
+    `[seed] Done - ${sigCount} signal(s), ${evtCount} event(s) in database.`
   );
 }
 

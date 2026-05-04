@@ -73,7 +73,7 @@ function ensureDemoSeeded() {
   const e1Id = uuid();
   upsertEvent({
     id: e1Id,
-    title: "Severe flooding — Lekki-Epe Expressway underpass",
+    title: "Severe flooding at Lekki-Epe Expressway underpass",
     description: "Multiple reports confirm severe flooding at the Lekki-Epe underpass.",
     eventType: "flooding",
     latitude: 6.4481,
@@ -81,7 +81,7 @@ function ensureDemoSeeded() {
     radiusMeters: 400,
     confidence: 0.88,
     status: "active",
-    reasoningChain: "Evidence for: photo (stranded vehicles), sensor (45cm), voice (cars turning back). Evidence against: one text-only report (passable) — low credibility (0.30), contradicts sensor and visual data. Resolution: the contradiction is dismissed due to the weight of photo and sensor evidence. Trend: Getting worse.\nRecommendation: Avoid the underpass entirely. Expect significant delays and potential road closures.",
+    reasoningChain: "Evidence for: photo (stranded vehicles), sensor (45cm), voice (cars turning back). Evidence against: one text-only report (passable), low credibility (0.30), contradicts sensor and visual data. Resolution: the contradiction is dismissed due to the weight of photo and sensor evidence. Trend: Getting worse.\nRecommendation: Avoid the underpass entirely. Expect significant delays and potential road closures.",
     signalCount: 4,
     firstReported: ago(95),
     lastUpdated: ago(42),
@@ -93,7 +93,7 @@ function ensureDemoSeeded() {
   const e2Id = uuid();
   upsertEvent({
     id: e2Id,
-    title: "Moderate flooding — Admiralty Way",
+    title: "Moderate flooding at Admiralty Way",
     description: "Ankle-deep flooding reported; most recent report indicates water is receding.",
     eventType: "flooding",
     latitude: 6.4387,

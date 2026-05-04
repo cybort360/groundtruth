@@ -64,7 +64,6 @@ export default function ReportForm() {
   // Photo state
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [photoInputMode, setPhotoInputMode] = useState<"camera" | "upload">("camera");
 
   // Voice state
   const [isRecording, setIsRecording] = useState(false);
@@ -341,10 +340,27 @@ export default function ReportForm() {
     );
   }
 
-  const MODE_META: Record<ReportMode, { icon: string; label: string }> = {
-    photo: { icon: "📷", label: "Photo" },
-    voice: { icon: "🎤", label: "Voice" },
-    text:  { icon: "📝", label: "Text" },
+  const MODE_ICONS: Record<ReportMode, React.ReactNode> = {
+    photo: (
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8}
+        strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+        <path d="M2 7.5A1.5 1.5 0 0 1 3.5 6h.879a1.5 1.5 0 0 0 1.243-.659l.494-.741A1.5 1.5 0 0 1 7.36 4h5.28a1.5 1.5 0 0 1 1.243.659l.495.741A1.5 1.5 0 0 0 15.62 6H16.5A1.5 1.5 0 0 1 18 7.5v7A1.5 1.5 0 0 1 16.5 16h-13A1.5 1.5 0 0 1 2 14.5v-7z" />
+        <circle cx="10" cy="11" r="2.5" />
+      </svg>
+    ),
+    voice: (
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8}
+        strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+        <rect x="7" y="2" width="6" height="9" rx="3" />
+        <path d="M4 10a6 6 0 0 0 12 0M10 16v2M7 18h6" />
+      </svg>
+    ),
+    text: (
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8}
+        strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+        <path d="M4 6h12M4 10h8M4 14h6" />
+      </svg>
+    ),
   };
 
   return (
@@ -361,26 +377,25 @@ export default function ReportForm() {
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200"
             }`}
           >
-            <span>{MODE_META[m].icon}</span>
-            {MODE_META[m].label}
+            {MODE_ICONS[m]}
+            {m.charAt(0).toUpperCase() + m.slice(1)}
           </button>
         ))}
       </div>
 
       {/* Photo mode */}
       {mode === "photo" && (
-        <div className="mb-5 flex flex-col items-center gap-3">
+        <div className="mb-5 flex flex-col gap-3">
           {!photoPreview && (
-            <div className="flex gap-2 w-full">
-              <label
-                className={`flex-1 py-2 px-3 rounded-full text-sm font-semibold text-center cursor-pointer transition-colors ${
-                  photoInputMode === "camera"
-                    ? "bg-teal-600 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-                onClick={() => setPhotoInputMode("camera")}
-              >
-                📸 Camera
+            <div className="flex gap-2">
+              {/* Camera — capture="environment" tells the browser to open the camera directly */}
+              <label className="flex-1 flex flex-col items-center gap-2 py-5 rounded-2xl border-2 border-slate-200 bg-slate-50 hover:border-teal-400 hover:bg-teal-50/30 cursor-pointer transition-colors">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}
+                  strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-slate-400">
+                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                  <circle cx="12" cy="13" r="4" />
+                </svg>
+                <span className="text-xs font-semibold text-slate-600">Take photo</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -389,15 +404,16 @@ export default function ReportForm() {
                   onChange={handlePhotoChange}
                 />
               </label>
-              <label
-                className={`flex-1 py-2 px-3 rounded-full text-sm font-semibold text-center cursor-pointer transition-colors ${
-                  photoInputMode === "upload"
-                    ? "bg-teal-600 text-white shadow-sm"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-                onClick={() => setPhotoInputMode("upload")}
-              >
-                🖼️ Upload
+
+              {/* Upload from library */}
+              <label className="flex-1 flex flex-col items-center gap-2 py-5 rounded-2xl border-2 border-slate-200 bg-slate-50 hover:border-teal-400 hover:bg-teal-50/30 cursor-pointer transition-colors">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}
+                  strokeLinecap="round" strokeLinejoin="round" className="w-8 h-8 text-slate-400">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <polyline points="21 15 16 10 5 21" />
+                </svg>
+                <span className="text-xs font-semibold text-slate-600">Choose from library</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -406,45 +422,6 @@ export default function ReportForm() {
                 />
               </label>
             </div>
-          )}
-          {!photoPreview && (
-            <label className="w-full cursor-pointer">
-              <div className="border-2 border-dashed rounded-xl p-6 text-center transition-colors border-slate-200 bg-slate-50 hover:border-teal-400 hover:bg-teal-50/30">
-                <div className="flex flex-col items-center gap-2 text-slate-500">
-                  <svg
-                    className="w-10 h-10 text-slate-300"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
-                  </svg>
-                  <span className="text-sm font-medium text-slate-600">
-                    {photoInputMode === "camera" ? "Tap to open camera" : "Tap to choose a file"}
-                  </span>
-                  <span className="text-xs text-slate-400">JPEG, PNG, HEIC supported</span>
-                </div>
-              </div>
-              <input
-                type="file"
-                accept="image/*"
-                {...(photoInputMode === "camera" ? { capture: "environment" as const } : {})}
-                className="sr-only"
-                onChange={handlePhotoChange}
-              />
-            </label>
           )}
           {photoPreview && (
             <div className="w-full border border-teal-200 bg-teal-50 rounded-xl overflow-hidden">
@@ -462,7 +439,7 @@ export default function ReportForm() {
                 setPhotoFile(null);
                 setPhotoPreview(null);
               }}
-              className="text-xs text-rose-500 hover:text-rose-700 font-medium"
+              className="text-xs text-rose-500 hover:text-rose-700 font-medium self-center"
             >
               Remove photo
             </button>
@@ -517,7 +494,21 @@ export default function ReportForm() {
                     : "bg-teal-600 hover:bg-teal-700 text-white"
                 }`}
               >
-                {isRecording ? "⏹ Stop Recording" : "⏺ Start Recording"}
+                {isRecording ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                      <rect x="3" y="3" width="10" height="10" rx="1" />
+                    </svg>
+                    Stop Recording
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                      <circle cx="8" cy="8" r="5" />
+                    </svg>
+                    Start Recording
+                  </span>
+                )}
               </button>
             </div>
           ) : (
