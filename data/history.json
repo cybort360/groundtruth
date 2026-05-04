@@ -1,0 +1,92 @@
+[
+  {
+    "date": "2025-07-08",
+    "eventType": "flooding",
+    "location": "Lekki-Epe Expressway Underpass",
+    "latitude": 6.4481,
+    "longitude": 3.4745,
+    "severity": "severe",
+    "description": "Heavy overnight rainfall caused waist-deep flooding at the underpass. Over 50 vehicles stranded. Water took 8 hours to recede."
+  },
+  {
+    "date": "2025-06-22",
+    "eventType": "flooding",
+    "location": "Admiralty Way, Lekki Phase 1",
+    "latitude": 6.4390,
+    "longitude": 3.4585,
+    "severity": "moderate",
+    "description": "Afternoon storm caused street-level flooding. Ankle to knee-deep water for 3 hours. Traffic rerouted through side streets."
+  },
+  {
+    "date": "2025-06-22",
+    "eventType": "flooding",
+    "location": "Lekki-Epe Expressway Underpass",
+    "latitude": 6.4479,
+    "longitude": 3.4748,
+    "severity": "severe",
+    "description": "Same storm system caused significant flooding at the underpass. Water level reached 60cm. Emergency services deployed."
+  },
+  {
+    "date": "2025-05-14",
+    "eventType": "flooding",
+    "location": "Victoria Island Marina",
+    "latitude": 6.4283,
+    "longitude": 3.4172,
+    "severity": "severe",
+    "description": "Combined rainfall and high tide caused flooding across Victoria Island low-lying areas. Several offices evacuated."
+  },
+  {
+    "date": "2025-04-30",
+    "eventType": "flooding",
+    "location": "Jakande Junction",
+    "latitude": 6.4503,
+    "longitude": 3.4810,
+    "severity": "moderate",
+    "description": "Morning rain caused waterlogging at junction. Traffic gridlock for 4 hours. No vehicles stranded but many turned back."
+  },
+  {
+    "date": "2024-10-15",
+    "eventType": "flooding",
+    "location": "Lekki-Epe Expressway Underpass",
+    "latitude": 6.4480,
+    "longitude": 3.4746,
+    "severity": "critical",
+    "description": "Worst flooding event in 2 years. Water exceeded 1 meter at underpass. Multiple rescues by emergency services. Road closed for 18 hours."
+  },
+  {
+    "date": "2024-09-03",
+    "eventType": "flooding",
+    "location": "Admiralty Way, Lekki Phase 1",
+    "latitude": 6.4388,
+    "longitude": 3.4591,
+    "severity": "moderate",
+    "description": "Extended rainfall over 6 hours caused persistent flooding. Water slow to drain due to blocked drainage channels."
+  },
+  {
+    "date": "2024-08-20",
+    "eventType": "road_closure",
+    "location": "Lekki-Epe Expressway Underpass",
+    "latitude": 6.4481,
+    "longitude": 3.4745,
+    "severity": "moderate",
+    "description": "Preventive road closure due to weather forecast. Underpass closed for 12 hours as precaution."
+  },
+  {
+    "date": "2024-07-11",
+    "eventType": "flooding",
+    "location": "Jakande Junction",
+    "latitude": 6.4500,
+    "longitude": 3.4815,
+    "severity": "severe",
+    "description": "Flash flooding after sudden downpour. Multiple vehicles submerged. Traffic diverted for 6 hours."
+  },
+  {
+    "date": "2024-06-28",
+    "eventType": "power_outage",
+    "location": "Lekki Phase 1",
+    "latitude": 6.4410,
+    "longitude": 3.4620,
+    "severity": "moderate",
+    "description": "Flooding damaged electrical substation. Power outage affected Lekki Phase 1 for 14 hours."
+  }
+]

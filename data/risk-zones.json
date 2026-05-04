@@ -1,0 +1,80 @@
+[
+  {
+    "name": "Lekki-Epe Expressway Underpass",
+    "latitude": 6.4481,
+    "longitude": 3.4745,
+    "radiusMeters": 300,
+    "riskLevel": "high",
+    "elevation": 2,
+    "nearestWater": "Lagos Lagoon",
+    "waterDistanceMeters": 800,
+    "drainageQuality": "poor",
+    "hazardTypes": ["flooding"],
+    "notes": "Low-lying underpass with history of severe flooding during heavy rain. Drainage system frequently overwhelmed. Multiple vehicle strandings recorded."
+  },
+  {
+    "name": "Admiralty Way, Lekki Phase 1",
+    "latitude": 6.4387,
+    "longitude": 3.4589,
+    "radiusMeters": 500,
+    "riskLevel": "moderate",
+    "elevation": 4,
+    "nearestWater": "Lekki Lagoon",
+    "waterDistanceMeters": 400,
+    "drainageQuality": "moderate",
+    "hazardTypes": ["flooding"],
+    "notes": "Moderate flood risk during sustained rainfall. Street-level flooding common but rarely exceeds ankle depth. Drainage partially functional."
+  },
+  {
+    "name": "Lekki Phase 1 Roundabout",
+    "latitude": 6.4412,
+    "longitude": 3.4623,
+    "radiusMeters": 200,
+    "riskLevel": "moderate",
+    "elevation": 5,
+    "nearestWater": "Lekki Lagoon",
+    "waterDistanceMeters": 600,
+    "drainageQuality": "moderate",
+    "hazardTypes": ["flooding"],
+    "notes": "Intersection prone to waterlogging during peak rain. Water pools at center of roundabout."
+  },
+  {
+    "name": "Jakande Junction, Lekki",
+    "latitude": 6.4501,
+    "longitude": 3.4812,
+    "radiusMeters": 400,
+    "riskLevel": "high",
+    "elevation": 3,
+    "nearestWater": "Atlantic Ocean",
+    "waterDistanceMeters": 2000,
+    "drainageQuality": "poor",
+    "hazardTypes": ["flooding"],
+    "notes": "High traffic junction with poor drainage. Flooding frequently causes multi-hour traffic gridlock. Road surface damaged by repeated flooding."
+  },
+  {
+    "name": "Victoria Island Marina",
+    "latitude": 6.4281,
+    "longitude": 3.4175,
+    "radiusMeters": 600,
+    "riskLevel": "high",
+    "elevation": 1,
+    "nearestWater": "Lagos Harbour",
+    "waterDistanceMeters": 100,
+    "drainageQuality": "poor",
+    "hazardTypes": ["flooding", "tsunami"],
+    "notes": "Extremely low elevation, vulnerable to both rainfall flooding and tidal surges. Critical infrastructure area."
+  },
+  {
+    "name": "Ikoyi Link Bridge Road",
+    "latitude": 6.4455,
+    "longitude": 3.4358,
+    "radiusMeters": 300,
+    "riskLevel": "low",
+    "elevation": 8,
+    "nearestWater": "Five Cowrie Creek",
+    "waterDistanceMeters": 200,
+    "drainageQuality": "good",
+    "hazardTypes": ["flooding"],
+    "notes": "Elevated road with good drainage. Rarely floods except during extreme events."
+  }
+]

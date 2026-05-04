@@ -1,0 +1,647 @@
+"use client";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+
+type ReportMode = "photo" | "voice" | "text";
+
+interface SubmitResult {
+  reportId: string;
+  signal: {
+    id: string;
+    locationName: string;
+    claim: string;
+    evidenceType: string;
+    severity: number;
+    credibilityScore: number;
+    credibilityReasoning: string;
+  };
+}
+
+interface LocationState {
+  status: "acquiring" | "acquired" | "failed";
+  latitude?: number;
+  longitude?: number;
+  manualLat?: string;
+  manualLng?: string;
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result !== "string") {
+        reject(new Error("FileReader did not return a string"));
+        return;
+      }
+      // Strip the data URL prefix (e.g. "data:audio/webm;base64,")
+      const base64 = reader.result.split(",")[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (typeof reader.result !== "string") {
+        reject(new Error("FileReader did not return a string"));
+        return;
+      }
+      const base64 = reader.result.split(",")[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+export default function ReportForm() {
+  const [mode, setMode] = useState<ReportMode>("text");
+
+  // Photo state
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoInputMode, setPhotoInputMode] = useState<"camera" | "upload">("camera");
+
+  // Voice state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Text state
+  const [textContent, setTextContent] = useState("");
+
+  // Location state
+  const [location, setLocation] = useState<LocationState>({
+    status: "acquiring",
+  });
+
+  // Submit state
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Acquire geolocation on mount
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setLocation({ status: "failed" });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocation({
+          status: "acquired",
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        });
+      },
+      () => {
+        setLocation({ status: "failed" });
+      },
+      { timeout: 10000 }
+    );
+  }, []);
+
+  // Clean up object URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+  }, [audioUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (photoPreview) URL.revokeObjectURL(photoPreview);
+    };
+  }, [photoPreview]);
+
+  useEffect(() => {
+    return () => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoFile(file);
+    const url = URL.createObjectURL(file);
+    setPhotoPreview(url);
+  };
+
+  const startRecording = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setSubmitError("Audio recording is not supported in this browser.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      chunksRef.current = [];
+
+      // Pick a supported MIME type with fallback
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : MediaRecorder.isTypeSupported("audio/ogg;codecs=opus")
+        ? "audio/ogg;codecs=opus"
+        : "";
+
+      const recorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
+        setAudioBlob(blob);
+        const url = URL.createObjectURL(blob);
+        setAudioUrl(url);
+        stream.getTracks().forEach((t) => t.stop());
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecording(true);
+      setRecordingSeconds(0);
+
+      timerRef.current = setInterval(() => {
+        setRecordingSeconds((s) => s + 1);
+      }, 1000);
+    } catch {
+      setSubmitError("Microphone access denied. Please allow microphone access and try again.");
+    }
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current?.state === "recording") {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+  }, []);
+
+  const getEffectiveLocation = (): { latitude: number; longitude: number } | null => {
+    if (location.status === "acquired" && location.latitude !== undefined && location.longitude !== undefined) {
+      return { latitude: location.latitude, longitude: location.longitude };
+    }
+    if (location.status === "failed") {
+      const lat = parseFloat(location.manualLat ?? "");
+      const lng = parseFloat(location.manualLng ?? "");
+      if (!isNaN(lat) && !isNaN(lng)) return { latitude: lat, longitude: lng };
+    }
+    return null;
+  };
+
+  const isSubmitEnabled = (): boolean => {
+    if (isSubmitting) return false;
+    if (!getEffectiveLocation()) return false;
+    if (mode === "photo") return !!photoFile;
+    if (mode === "voice") return !!audioBlob;
+    if (mode === "text") return textContent.trim().length > 0;
+    return false;
+  };
+
+  const handleSubmit = async () => {
+    const coords = getEffectiveLocation();
+    if (!coords) return;
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const body: Record<string, any> = {
+        type: mode,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      };
+
+      if (mode === "photo" && photoFile) {
+        body.image = await fileToBase64(photoFile);
+      } else if (mode === "voice" && audioBlob) {
+        body.audio = await blobToBase64(audioBlob);
+      } else if (mode === "text") {
+        body.content = textContent;
+      }
+
+      const res = await fetch("/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const errData = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(errData.error ?? `Server error: ${res.status}`);
+      }
+
+      const data = (await res.json()) as SubmitResult;
+      setSubmitResult(data);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Submission failed. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const resetForm = () => {
+    setMode("text");
+    setPhotoFile(null);
+    if (photoPreview) URL.revokeObjectURL(photoPreview);
+    setPhotoPreview(null);
+    setIsRecording(false);
+    setRecordingSeconds(0);
+    setAudioBlob(null);
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioUrl(null);
+    setTextContent("");
+    setSubmitResult(null);
+    setSubmitError(null);
+  };
+
+  if (submitResult) {
+    return (
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 w-full">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="flex items-center justify-center w-14 h-14 rounded-full bg-teal-50 border border-teal-100">
+            <svg
+              className="w-8 h-8 text-teal-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2.2}
+            >
+              <path d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Report received</h2>
+            {submitResult.signal.locationName && (
+              <p className="text-sm text-slate-500 mt-0.5">{submitResult.signal.locationName}</p>
+            )}
+          </div>
+          {submitResult.signal.claim && (
+            <div className="bg-slate-50 rounded-xl px-4 py-3 w-full text-left">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">AI extracted claim</p>
+              <p className="text-sm text-slate-700 leading-relaxed italic">&ldquo;{submitResult.signal.claim}&rdquo;</p>
+            </div>
+          )}
+          <div className="flex items-center justify-between w-full bg-teal-50 border border-teal-100 rounded-xl px-4 py-2.5">
+            <span className="text-xs font-medium text-teal-700">Credibility score</span>
+            <span className="text-sm font-bold text-teal-700">
+              {Math.round(submitResult.signal.credibilityScore * 100)}%
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            This report has been added to the local evidence pool. The reasoning engine will incorporate it into the next assessment.
+          </p>
+          <div className="flex gap-3 w-full">
+            <button
+              onClick={resetForm}
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 transition-colors"
+            >
+              Submit another
+            </button>
+            <a
+              href="/"
+              className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors text-center"
+            >
+              View dashboard
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const MODE_META: Record<ReportMode, { icon: string; label: string }> = {
+    photo: { icon: "📷", label: "Photo" },
+    voice: { icon: "🎤", label: "Voice" },
+    text:  { icon: "📝", label: "Text" },
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 w-full">
+      {/* Mode tabs */}
+      <div className="flex gap-2 mb-5">
+        {(["photo", "voice", "text"] as ReportMode[]).map((m) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={`flex-1 py-2 px-3 rounded-full text-sm font-semibold transition-colors flex items-center justify-center gap-1.5 ${
+              mode === m
+                ? "bg-teal-600 text-white shadow-sm"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            <span>{MODE_META[m].icon}</span>
+            {MODE_META[m].label}
+          </button>
+        ))}
+      </div>
+
+      {/* Photo mode */}
+      {mode === "photo" && (
+        <div className="mb-5 flex flex-col items-center gap-3">
+          {!photoPreview && (
+            <div className="flex gap-2 w-full">
+              <label
+                className={`flex-1 py-2 px-3 rounded-full text-sm font-semibold text-center cursor-pointer transition-colors ${
+                  photoInputMode === "camera"
+                    ? "bg-teal-600 text-white shadow-sm"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+                onClick={() => setPhotoInputMode("camera")}
+              >
+                📸 Camera
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  onChange={handlePhotoChange}
+                />
+              </label>
+              <label
+                className={`flex-1 py-2 px-3 rounded-full text-sm font-semibold text-center cursor-pointer transition-colors ${
+                  photoInputMode === "upload"
+                    ? "bg-teal-600 text-white shadow-sm"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                }`}
+                onClick={() => setPhotoInputMode("upload")}
+              >
+                🖼️ Upload
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={handlePhotoChange}
+                />
+              </label>
+            </div>
+          )}
+          {!photoPreview && (
+            <label className="w-full cursor-pointer">
+              <div className="border-2 border-dashed rounded-xl p-6 text-center transition-colors border-slate-200 bg-slate-50 hover:border-teal-400 hover:bg-teal-50/30">
+                <div className="flex flex-col items-center gap-2 text-slate-500">
+                  <svg
+                    className="w-10 h-10 text-slate-300"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
+                  </svg>
+                  <span className="text-sm font-medium text-slate-600">
+                    {photoInputMode === "camera" ? "Tap to open camera" : "Tap to choose a file"}
+                  </span>
+                  <span className="text-xs text-slate-400">JPEG, PNG, HEIC supported</span>
+                </div>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                {...(photoInputMode === "camera" ? { capture: "environment" as const } : {})}
+                className="sr-only"
+                onChange={handlePhotoChange}
+              />
+            </label>
+          )}
+          {photoPreview && (
+            <div className="w-full border border-teal-200 bg-teal-50 rounded-xl overflow-hidden">
+              <img
+                src={photoPreview}
+                alt="Preview"
+                className="mx-auto max-h-56 w-full object-cover"
+              />
+            </div>
+          )}
+          {photoPreview && (
+            <button
+              onClick={() => {
+                if (photoPreview) URL.revokeObjectURL(photoPreview);
+                setPhotoFile(null);
+                setPhotoPreview(null);
+              }}
+              className="text-xs text-rose-500 hover:text-rose-700 font-medium"
+            >
+              Remove photo
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Voice mode */}
+      {mode === "voice" && (
+        <div className="mb-5 flex flex-col items-center gap-4">
+          {!audioBlob ? (
+            <div className="flex flex-col items-center gap-4 w-full">
+              <div
+                className={`flex items-center justify-center w-24 h-24 rounded-full border-4 transition-colors ${
+                  isRecording
+                    ? "border-rose-400 bg-rose-50"
+                    : "border-slate-200 bg-slate-50"
+                }`}
+              >
+                {isRecording ? (
+                  <span className="flex items-center gap-1.5">
+                    <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500" />
+                    </span>
+                    <span className="text-sm font-mono text-rose-600 font-semibold">
+                      {recordingSeconds}s
+                    </span>
+                  </span>
+                ) : (
+                  <svg
+                    className="w-10 h-10 text-slate-300"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                    />
+                  </svg>
+                )}
+              </div>
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                className={`w-full py-3 rounded-xl font-semibold text-sm transition-colors ${
+                  isRecording
+                    ? "bg-rose-600 hover:bg-rose-700 text-white"
+                    : "bg-teal-600 hover:bg-teal-700 text-white"
+                }`}
+              >
+                {isRecording ? "⏹ Stop Recording" : "⏺ Start Recording"}
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3 w-full">
+              <div className="w-full bg-slate-50 rounded-xl p-3 border border-slate-200">
+                <audio controls src={audioUrl ?? undefined} className="w-full" />
+              </div>
+              <button
+                onClick={() => {
+                  setAudioBlob(null);
+                  if (audioUrl) URL.revokeObjectURL(audioUrl);
+                  setAudioUrl(null);
+                  setRecordingSeconds(0);
+                }}
+                className="text-xs text-rose-500 hover:text-rose-700 font-medium"
+              >
+                Record again
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Text mode */}
+      {mode === "text" && (
+        <div className="mb-5">
+          <label htmlFor="text-report" className="sr-only">Report description</label>
+          <textarea
+            id="text-report"
+            rows={5}
+            value={textContent}
+            onChange={(e) => setTextContent(e.target.value)}
+            placeholder="Describe what you're seeing. Include location details, what's happening, and how severe it is."
+            className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+          />
+        </div>
+      )}
+
+      {/* Location status */}
+      <div className="mb-5">
+        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Location</p>
+        {location.status === "acquiring" && (
+          <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-200">
+            <svg className="animate-spin h-4 w-4 text-teal-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Acquiring GPS location…
+          </div>
+        )}
+        {location.status === "acquired" && (
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5">
+            <svg className="w-4 h-4 text-emerald-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+              <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+            </svg>
+            <span className="text-xs font-mono text-emerald-700">
+              {location.latitude?.toFixed(5)}, {location.longitude?.toFixed(5)}
+            </span>
+            <span className="ml-auto text-[10px] text-emerald-600 font-semibold">GPS locked</span>
+          </div>
+        )}
+        {location.status === "failed" && (
+          <div className="space-y-2.5">
+            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5">
+              GPS unavailable — enter coordinates manually
+            </p>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-xs text-slate-500 mb-1 block font-medium">Latitude</label>
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="e.g. 6.4481"
+                  value={location.manualLat ?? ""}
+                  onChange={(e) =>
+                    setLocation((prev) => ({ ...prev, manualLat: e.target.value }))
+                  }
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs text-slate-500 mb-1 block font-medium">Longitude</label>
+                <input
+                  type="number"
+                  step="any"
+                  placeholder="e.g. 3.4745"
+                  value={location.manualLng ?? ""}
+                  onChange={(e) =>
+                    setLocation((prev) => ({ ...prev, manualLng: e.target.value }))
+                  }
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Error banner */}
+      {submitError && (
+        <div className="mb-4 flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-sm text-rose-700">
+          <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-rose-500" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+          {submitError}
+        </div>
+      )}
+
+      {/* Submit button */}
+      <button
+        onClick={handleSubmit}
+        disabled={!isSubmitEnabled()}
+        className={`w-full py-3.5 rounded-xl font-semibold text-sm transition-all ${
+          isSubmitEnabled()
+            ? "bg-teal-600 hover:bg-teal-700 text-white shadow-sm active:scale-[0.98]"
+            : "bg-slate-100 text-slate-400 cursor-not-allowed"
+        }`}
+      >
+        {isSubmitting ? (
+          <span className="flex items-center justify-center gap-2">
+            <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            Analyzing report…
+          </span>
+        ) : (
+          "Submit Report"
+        )}
+      </button>
+    </div>
+  );
+}

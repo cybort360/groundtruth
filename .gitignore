@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Environment variables — never commit real keys
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database (keep .db out of git — schema is in src/lib/db.ts)
+data/groundtruth.db
+data/groundtruth.db-shm
+data/groundtruth.db-wal
+
+# Settings (may contain API keys)
+data/settings.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Logs
+*.log
+npm-debug.log*
+
+# Map tiles (large, downloaded separately)
+public/tiles/
+
+# Test output
+coverage/
+
+# Claude Code session data
+.claude/
+
+# Package lock (optional: keep if you want reproducible installs)
+# package-lock.json

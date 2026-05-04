@@ -1,0 +1,348 @@
+"use client";
+
+/**
+ * Settings page — configure inference backend (Ollama vs Google Gemma API).
+ */
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+
+type BackendType = "auto" | "ollama" | "google";
+
+interface SettingsState {
+  backend: BackendType;
+  googleApiKey: string;
+  googleModel: string;
+  ollamaBaseUrl: string;
+  ollamaModel: string;
+}
+
+type TestResult = { ok: boolean; message: string } | null;
+
+const BACKEND_OPTIONS: { value: BackendType; label: string; desc: string; icon: string }[] = [
+  {
+    value: "auto",
+    icon: "⚡",
+    label: "Auto",
+    desc: "Try Ollama first, fall back to Google API. Best default.",
+  },
+  {
+    value: "ollama",
+    icon: "🖥️",
+    label: "Ollama (Local)",
+    desc: "100% offline. Requires Ollama running locally with gemma4:e4b pulled.",
+  },
+  {
+    value: "google",
+    icon: "☁️",
+    label: "Google Gemma API",
+    desc: "Works on any device with internet. Requires a free Google AI Studio key.",
+  },
+];
+
+export default function SettingsPage() {
+  const [settings, setSettings] = useState<SettingsState>({
+    backend: "auto",
+    googleApiKey: "",
+    googleModel: "gemma-3-27b-it",
+    ollamaBaseUrl: "http://localhost:11434",
+    ollamaModel: "gemma4:e4b",
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [testResult, setTestResult] = useState<TestResult>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data: SettingsState) => {
+        setSettings(data);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  function update(patch: Partial<SettingsState>) {
+    setSaved(false);
+    setTestResult(null);
+    setSettings((prev) => ({ ...prev, ...patch }));
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      setSaved(true);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleTest() {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(settings),
+      });
+
+      if (settings.backend === "ollama" || settings.backend === "auto") {
+        const r = await fetch("/api/health/ollama");
+        const d = (await r.json()) as { available: boolean };
+        if (d.available) {
+          setTestResult({ ok: true, message: "Ollama is reachable ✓" });
+        } else if (settings.backend === "ollama") {
+          setTestResult({ ok: false, message: "Ollama not reachable. Is it running?" });
+        } else {
+          if (settings.googleApiKey && !settings.googleApiKey.startsWith("••••")) {
+            setTestResult({ ok: true, message: "Ollama offline → will use Google Gemma API ✓" });
+          } else {
+            setTestResult({
+              ok: false,
+              message: "Ollama offline and no Google API key set. Add a key for fallback.",
+            });
+          }
+        }
+      } else {
+        if (!settings.googleApiKey || settings.googleApiKey.startsWith("••••")) {
+          setTestResult({ ok: false, message: "Please enter your Google API key first." });
+        } else {
+          setTestResult({ ok: true, message: "Google API key saved. Connection will be verified on first inference call." });
+        }
+      }
+    } catch {
+      setTestResult({ ok: false, message: "Connection test failed." });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <p className="text-slate-400 text-sm">Loading settings…</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      {/* Header — matches dashboard style */}
+      <header className="bg-teal-700 text-white sticky top-0 z-30 shadow-sm">
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+          <Link
+            href="/"
+            className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 transition-colors flex-shrink-0"
+            aria-label="Back to dashboard"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"
+              strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </Link>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm font-bold text-white leading-tight">Settings</h1>
+            <p className="text-[11px] text-teal-200 leading-tight">Inference backend &amp; connectivity</p>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-2xl mx-auto px-4 py-5 pb-10 space-y-4">
+
+        {/* Backend selector */}
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">Inference Backend</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              GroundTruth uses Gemma 4 for all AI reasoning. Choose how to reach it.
+            </p>
+          </div>
+
+          <div className="space-y-2.5">
+            {BACKEND_OPTIONS.map((opt) => (
+              <label
+                key={opt.value}
+                className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer transition-colors ${
+                  settings.backend === opt.value
+                    ? "border-teal-500 bg-teal-50"
+                    : "border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="backend"
+                  value={opt.value}
+                  checked={settings.backend === opt.value}
+                  onChange={() => update({ backend: opt.value })}
+                  className="mt-0.5 accent-teal-600"
+                />
+                <div>
+                  <div className="text-sm font-semibold text-slate-900 flex items-center gap-1.5">
+                    <span>{opt.icon}</span>
+                    {opt.label}
+                  </div>
+                  <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">{opt.desc}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </section>
+
+        {/* Ollama config */}
+        {(settings.backend === "ollama" || settings.backend === "auto") && (
+          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+            <h2 className="text-sm font-bold text-slate-900">🖥️ Ollama Configuration</h2>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Base URL</label>
+                <input
+                  type="url"
+                  value={settings.ollamaBaseUrl}
+                  onChange={(e) => update({ ollamaBaseUrl: e.target.value })}
+                  placeholder="http://localhost:11434"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  Default: http://localhost:11434. Change if Ollama runs on another machine.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Model</label>
+                <input
+                  type="text"
+                  value={settings.ollamaModel}
+                  onChange={(e) => update({ ollamaModel: e.target.value })}
+                  placeholder="gemma4:e4b"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  Run{" "}
+                  <code className="bg-slate-100 text-slate-600 px-1 rounded">ollama pull gemma4:e4b</code>{" "}
+                  to download.
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Google API config */}
+        {(settings.backend === "google" || settings.backend === "auto") && (
+          <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+            <h2 className="text-sm font-bold text-slate-900">☁️ Google Gemma API</h2>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">API Key</label>
+                <input
+                  type="password"
+                  value={settings.googleApiKey}
+                  onChange={(e) => update({ googleApiKey: e.target.value })}
+                  placeholder="AIza…"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  Get a free key at{" "}
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-teal-600 hover:underline"
+                  >
+                    aistudio.google.com
+                  </a>
+                  . Stored locally in data/settings.json — never sent anywhere else.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Model</label>
+                <input
+                  type="text"
+                  value={settings.googleModel}
+                  onChange={(e) => update({ googleModel: e.target.value })}
+                  placeholder="gemma-3-27b-it"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+                <p className="text-xs text-slate-400 mt-1">
+                  Use <code className="bg-slate-100 text-slate-600 px-1 rounded">gemma-3-27b-it</code> (free tier).
+                  Switch to <code className="bg-slate-100 text-slate-600 px-1 rounded">gemini-2.0-flash</code> for speed.
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Test / status results */}
+        {testResult && (
+          <div className={`rounded-2xl px-4 py-3.5 text-sm font-medium border ${
+            testResult.ok
+              ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+              : "bg-rose-50 text-rose-800 border-rose-200"
+          }`}>
+            {testResult.message}
+          </div>
+        )}
+
+        {error && (
+          <div className="rounded-2xl px-4 py-3.5 text-sm font-medium bg-rose-50 text-rose-800 border border-rose-200">
+            Error: {error}
+          </div>
+        )}
+
+        {saved && !error && (
+          <div className="rounded-2xl px-4 py-3.5 text-sm font-medium bg-emerald-50 text-emerald-800 border border-emerald-200">
+            ✓ Settings saved
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={handleTest}
+            disabled={testing || saving}
+            className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-50 transition-colors"
+          >
+            {testing ? "Testing…" : "Test Connection"}
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || testing}
+            className="flex-1 py-3 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 disabled:opacity-50 transition-colors shadow-sm"
+          >
+            {saving ? "Saving…" : "Save Settings"}
+          </button>
+        </div>
+
+        {/* PWA install hint */}
+        <section className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-1.5">
+          <h3 className="text-sm font-semibold text-amber-900 flex items-center gap-1.5">
+            📲 Install as offline app
+          </h3>
+          <p className="text-xs text-amber-800 leading-relaxed">
+            GroundTruth is a Progressive Web App. In Chrome or Safari, tap{" "}
+            <strong>Share → Add to Home Screen</strong> (iOS) or the install icon in the address
+            bar (desktop/Android). Once installed, the app and map tiles work without internet.
+          </p>
+          <p className="text-xs text-amber-800 leading-relaxed">
+            AI inference still requires Ollama running locally <em>or</em> a Google API key.
+          </p>
+        </section>
+      </div>
+    </div>
+  );
+}
