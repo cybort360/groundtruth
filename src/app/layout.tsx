@@ -41,10 +41,9 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Seed demo data on every server-side render.
-  // Runs in the Next.js server component context (request time, not build time),
-  // so the DB is populated before the client makes its first API call.
-  // isAlreadySeeded() makes this a no-op on warm instances.
+  // Seed demo data on server render. isAlreadySeeded() makes this a no-op on warm
+  // instances so the cost is effectively zero after the first cold start.
+  // Run synchronously so data is ready before the client's first /api/events call.
   try { seedFallbackData(); } catch { /* DB unavailable during static analysis — skip */ }
 
   return (
@@ -52,6 +51,11 @@ export default function RootLayout({
       <head>
         {/* Fallback for older Safari / standalone mode */}
         <meta name="mobile-web-app-capable" content="yes" />
+        {/* Preconnect to OpenStreetMap tile servers so map tiles load faster */}
+        <link rel="preconnect" href="https://a.tile.openstreetmap.org" />
+        <link rel="preconnect" href="https://b.tile.openstreetmap.org" />
+        <link rel="preconnect" href="https://c.tile.openstreetmap.org" />
+        <link rel="dns-prefetch" href="https://tile.openstreetmap.org" />
       </head>
       <body className={`${inter.variable} font-sans bg-slate-50 text-slate-900 antialiased`}>
         <ServiceWorkerRegistrar />

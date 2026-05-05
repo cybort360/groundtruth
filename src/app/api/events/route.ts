@@ -38,11 +38,21 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({
-      events: enriched,
-      lastUpdated: new Date().toISOString(),
-      unanalyzedCount: getUnlinkedSignalCount(),
-    });
+    return NextResponse.json(
+      {
+        events: enriched,
+        lastUpdated: new Date().toISOString(),
+        unanalyzedCount: getUnlinkedSignalCount(),
+      },
+      {
+        headers: {
+          // Serve fresh for 10s, then serve stale while revalidating in the
+          // background for up to 30s. Keeps repeated page loads instant
+          // without affecting the 30s poll meaningfully.
+          "Cache-Control": "public, s-maxage=10, stale-while-revalidate=30",
+        },
+      }
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: message }, { status: 500 });
