@@ -239,11 +239,25 @@ export default function DashboardPage() {
   const visibleEvents = timeframeEvents
     .filter((e) => filterType === "all" || e.eventType === filterType)
     .filter((e) => e.confidence * 100 >= minConfidence)
-    .filter((e) => !q ||
-      e.title.toLowerCase().includes(q) ||
-      e.eventType.toLowerCase().includes(q) ||
-      (e.description ?? "").toLowerCase().includes(q)
-    )
+    .filter((e) => {
+      // When a location has been geocoded, only proximity matters.
+      // The search text was used to find the place — it's not a keyword filter.
+      if (mapCenter) {
+        const [lat, lng] = mapCenter;
+        return (
+          Math.abs(e.latitude - lat) < 0.45 &&
+          Math.abs(e.longitude - lng) < 0.45
+        );
+      }
+      // No location active — pure keyword filter (also checks reasoning chain)
+      if (!q) return true;
+      return (
+        e.title.toLowerCase().includes(q) ||
+        e.eventType.toLowerCase().includes(q) ||
+        (e.description ?? "").toLowerCase().includes(q) ||
+        (e.reasoningChain ?? "").toLowerCase().includes(q)
+      );
+    })
     .sort((a, b) =>
       sortOrder === "confidence"
         ? b.confidence - a.confidence
@@ -864,10 +878,27 @@ export default function DashboardPage() {
           ) : visibleEvents.length === 0 && error === null ? (
             events.length > 0 ? (
               // Events exist but filtered out
-              <div className="bg-white rounded-2xl border border-slate-200 p-8 flex flex-col items-center text-center">
-                <span className="text-slate-300 mb-2"><SearchIcon className="w-8 h-8" /></span>
-                <p className="text-sm font-semibold text-slate-700 mb-1">No matches for this filter</p>
-                <p className="text-xs text-slate-400">Try "Any" confidence or a different event type.</p>
+              <div className="bg-white rounded-2xl border border-slate-200 p-8 flex flex-col items-center text-center gap-3">
+                <span className="text-slate-300"><SearchIcon className="w-8 h-8" /></span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-700 mb-1">No matches for this filter</p>
+                  <p className="text-xs text-slate-400">Try "Any" confidence or a different event type.</p>
+                </div>
+                {/* When there's a search query, prompt the user to try the location jump */}
+                {searchQuery.trim() && (
+                  <button
+                    onClick={() => void searchLocation()}
+                    disabled={locationSearching}
+                    className="flex items-center gap-2 text-xs font-semibold text-teal-700 bg-teal-50 border border-teal-200 px-3.5 py-2 rounded-xl hover:bg-teal-100 transition-colors disabled:opacity-50"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                      strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5 flex-shrink-0">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                    Search &ldquo;{searchQuery.trim()}&rdquo; as a location
+                  </button>
+                )}
               </div>
             ) : (
               // No events at all — show mission statement
