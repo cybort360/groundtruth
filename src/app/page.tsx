@@ -74,6 +74,7 @@ export default function DashboardPage() {
   const [loading, setLoading]                   = useState(true);
   const [refreshing, setRefreshing]             = useState(false);
   const [changedIds, setChangedIds]             = useState<Set<string>>(new Set());
+  const [newEventIds, setNewEventIds]           = useState<Set<string>>(new Set());
   const [error, setError]                       = useState<string | null>(null);
   const [lastUpdated, setLastUpdated]           = useState<string | null>(null);
   const [unanalyzedCount, setUnanalyzedCount]   = useState(0);
@@ -103,9 +104,12 @@ export default function DashboardPage() {
 
       // Find events whose confidence shifted since the last poll.
       const changed = new Set<string>();
+      const brandNew = new Set<string>();
       for (const e of data.events) {
         const prev = prevConfidence.current.get(e.id);
-        if (prev !== undefined && Math.abs(prev - e.confidence) > 0.005) {
+        if (prev === undefined) {
+          brandNew.add(e.id); // event didn't exist before this fetch
+        } else if (Math.abs(prev - e.confidence) > 0.005) {
           changed.add(e.id);
         }
       }
@@ -118,8 +122,13 @@ export default function DashboardPage() {
 
       if (changed.size > 0) {
         setChangedIds(changed);
-        // Clear after the flash animation finishes (1 s).
         setTimeout(() => setChangedIds(new Set()), 1200);
+      }
+
+      // Only scroll to new events on background refreshes (not the initial load)
+      if (brandNew.size > 0 && isBackground) {
+        setNewEventIds(brandNew);
+        setTimeout(() => setNewEventIds(new Set()), 2000);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load events");
@@ -153,6 +162,14 @@ export default function DashboardPage() {
     intervalRef.current = setInterval(() => void fetchEvents(true), 30_000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchEvents]);
+
+  // Scroll to the first genuinely new event card after analysis completes.
+  useEffect(() => {
+    if (newEventIds.size === 0) return;
+    const firstId = [...newEventIds][0];
+    const el = document.getElementById(`event-${firstId}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [newEventIds]);
 
   // Auto-detect slow connection on mount and on connection change.
   useEffect(() => {
@@ -226,17 +243,23 @@ export default function DashboardPage() {
             </svg>
             <div className="min-w-0">
               <h1 className="text-sm font-bold text-white leading-tight">GroundTruth</h1>
-              <p className="text-[11px] text-teal-200 leading-tight truncate">
-                {isOffline ? (
-                  <span className="flex items-center gap-1">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400" />
-                    Offline{ollamaReachable ? " · Gemma active" : ""}
-                  </span>
-                ) : lastUpdated ? (
-                  `Updated ${getRelativeTime(lastUpdated)}`
-                ) : (
-                  "Situational Awareness"
-                )}
+              <p className="text-[11px] text-teal-200 leading-tight truncate flex items-center gap-1.5">
+                {/* AI model indicator — always visible */}
+                <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                  isOffline
+                    ? "bg-amber-400"
+                    : ollamaReachable
+                    ? "bg-emerald-400"
+                    : "bg-sky-400"
+                }`} />
+                <span>
+                  {isOffline
+                    ? `Offline${ollamaReachable ? " · Local AI" : ""}`
+                    : ollamaReachable
+                    ? "Local AI · E4B"
+                    : "Cloud AI · Gemma"}
+                  {lastUpdated && ` · ${getRelativeTime(lastUpdated)}`}
+                </span>
               </p>
             </div>
           </div>
@@ -747,7 +770,9 @@ export default function DashboardPage() {
             )
           ) : (
             visibleEvents.map((event) => (
-              <EventCard key={event.id} event={event} isUpdating={changedIds.has(event.id)} />
+              <div key={event.id} id={`event-${event.id}`}>
+                <EventCard event={event} isUpdating={changedIds.has(event.id)} />
+              </div>
             ))
           )}
         </div>
