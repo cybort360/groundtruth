@@ -340,7 +340,7 @@ export default function DashboardPage() {
                 <p className="text-sm font-semibold text-rose-800">
                   {critical.length === 1 ? "Critical situation confirmed" : `${critical.length} critical situations confirmed`}
                 </p>
-                <p className="text-xs text-rose-600 mt-0.5">High-confidence reports — act on this information now.</p>
+                <p className="text-xs text-rose-600 mt-0.5">High-confidence reports. Act on this information now.</p>
               </div>
             </div>
           );
@@ -418,7 +418,7 @@ export default function DashboardPage() {
                     In a crisis, conflicting<br />information kills.
                   </h2>
                   <p className="text-sm text-teal-200 mt-2 leading-relaxed">
-                    GroundTruth weighs every report against the others —<br />
+                    GroundTruth weighs every report against the others<br />
                     so you know what's actually happening.
                   </p>
                 </div>
