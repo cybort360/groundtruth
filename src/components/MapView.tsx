@@ -3,43 +3,78 @@
 import "leaflet/dist/leaflet.css";
 import { useEffect } from "react";
 import { MapContainer, TileLayer, Circle, Popup, useMap } from "react-leaflet";
-import type { AssessedEvent } from "@/types";
+import type { AssessedEvent, NormalizedSignal } from "@/types";
 
-interface MapViewProps {
-  events: AssessedEvent[];
-  onEventClick?: (eventId: string) => void;
+// ── Risk colour helpers ───────────────────────────────────────────────────────
+
+/**
+ * Credibility-weighted severity from an event's signals.
+ * Mirrors the same logic in EventCard so map colours stay consistent with cards.
+ */
+function deriveSeverity(signals: NormalizedSignal[]): number {
+  if (!signals?.length) return 3;
+  const totalWeight = signals.reduce((s, sig) => s + sig.credibilityScore, 0);
+  if (totalWeight === 0) return 3;
+  const weighted = signals.reduce((s, sig) => s + sig.severity * sig.credibilityScore, 0);
+  return Math.min(5, Math.max(1, Math.round(weighted / totalWeight)));
 }
 
-const EVENT_ICONS: Record<string, string> = {
-  flooding: "🌊", earthquake: "🏚️", wildfire: "🔥", landslide: "⛰️",
-  tsunami: "🌊", tropical_storm: "🌀", road_closure: "🚧", power_outage: "⚡",
-  structural_damage: "🏗️", gas_leak: "💨", avalanche: "🏔️",
-  volcanic_activity: "🌋", other: "⚠️",
+interface RiskColors {
+  stroke: string;
+  fill:   string;
+  label:  string;
+}
+
+/**
+ * Colour encodes DANGER, not confidence.
+ * High confidence of a dangerous event should be red, not green.
+ *
+ * Resolved  → slate  (threat gone)
+ * Uncertain → amber  (watching, unconfirmed)
+ * Active    → orange → red, scaled by severity + confidence
+ */
+function getRiskColors(event: AssessedEvent): RiskColors {
+  if (event.status === "resolved") {
+    return { stroke: "#64748b", fill: "#94a3b8", label: "Resolved" };
+  }
+  if (event.status === "uncertain") {
+    return { stroke: "#d97706", fill: "#fbbf24", label: "Uncertain" };
+  }
+
+  const severity = deriveSeverity(event.signals ?? []);
+
+  if (severity >= 4 && event.confidence >= 0.6) {
+    return { stroke: "#b91c1c", fill: "#ef4444", label: "Critical" };
+  }
+  if (severity >= 4 || event.confidence >= 0.75) {
+    return { stroke: "#c2410c", fill: "#f97316", label: "High" };
+  }
+  if (severity >= 3 || event.confidence >= 0.5) {
+    return { stroke: "#b45309", fill: "#f59e0b", label: "Moderate" };
+  }
+  return { stroke: "#065f46", fill: "#10b981", label: "Low" };
+}
+
+// ── Event type label ──────────────────────────────────────────────────────────
+
+const EVENT_TYPE_LABEL: Record<string, string> = {
+  flooding:          "Flooding",
+  earthquake:        "Earthquake",
+  wildfire:          "Wildfire",
+  landslide:         "Landslide",
+  tsunami:           "Tsunami",
+  tropical_storm:    "Tropical Storm",
+  road_closure:      "Road Closure",
+  power_outage:      "Power Outage",
+  structural_damage: "Structural Damage",
+  gas_leak:          "Gas Leak",
+  avalanche:         "Avalanche",
+  volcanic_activity: "Volcanic Activity",
+  other:             "Incident",
 };
 
-function getEventIcon(eventType: string): string {
-  return EVENT_ICONS[eventType] ?? "⚠️";
-}
+// ── FitBounds ─────────────────────────────────────────────────────────────────
 
-function getColor(confidence: number): string {
-  if (confidence >= 0.8) return "#22c55e";
-  if (confidence >= 0.5) return "#f59e0b";
-  return "#ef4444";
-}
-
-function formatConfidence(confidence: number): string {
-  return `${Math.round(confidence * 100)}%`;
-}
-
-function getStatusLabel(status: AssessedEvent["status"]): string {
-  switch (status) {
-    case "active":   return "Active";
-    case "resolved": return "Resolved";
-    case "uncertain":return "Uncertain";
-  }
-}
-
-/** Automatically pan + zoom the map to show all events. */
 function FitBounds({ events }: { events: AssessedEvent[] }) {
   const map = useMap();
 
@@ -63,14 +98,72 @@ function FitBounds({ events }: { events: AssessedEvent[] }) {
   return null;
 }
 
-// Use locally-cached tiles when NEXT_PUBLIC_OFFLINE_TILES=true (set after running npm run tiles:download)
+// ── Popup HTML builder ────────────────────────────────────────────────────────
+
+function buildPopupHtml(event: AssessedEvent, onEventClick?: (id: string) => void): string {
+  const { fill, stroke, label } = getRiskColors(event);
+  const severity    = deriveSeverity(event.signals ?? []);
+  const reportCount = event.signals?.length ?? event.signalCount;
+  const typeLabel   = EVENT_TYPE_LABEL[event.eventType] ?? "Incident";
+  const confPct     = Math.round(event.confidence * 100);
+
+  const conflictRow = (event.conflicts?.length ?? 0) > 0
+    ? `<p style="color:#b45309;font-size:11px;margin:0 0 6px">
+         ⚠ ${event.conflicts.length} conflicting report${event.conflicts.length !== 1 ? "s" : ""}
+       </p>`
+    : "";
+
+  const btnRow = onEventClick
+    ? `<button
+         onclick="window.__gtEventClick__('${event.id}')"
+         style="margin-top:4px;font-size:12px;padding:4px 12px;background:${fill};color:#fff;
+                border:none;border-radius:6px;cursor:pointer;font-weight:600">
+         View details
+       </button>`
+    : "";
+
+  return `
+    <div style="min-width:175px;font-family:system-ui,sans-serif;font-size:13px;line-height:1.4">
+      <p style="font-weight:700;margin:0 0 4px;color:#0f172a">${event.title}</p>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;flex-wrap:wrap">
+        <span style="background:${fill};color:#fff;font-size:11px;font-weight:700;
+                     padding:2px 8px;border-radius:999px">${label}</span>
+        <span style="color:#64748b;font-size:11px">${typeLabel}</span>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:6px">
+        <div>
+          <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Confidence</div>
+          <div style="font-weight:700;color:${stroke}">${confPct}%</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Severity</div>
+          <div style="font-weight:700;color:${stroke}">${severity}/5</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:#94a3b8;text-transform:uppercase;letter-spacing:.05em">Reports</div>
+          <div style="font-weight:700;color:#334155">${reportCount}</div>
+        </div>
+      </div>
+      ${conflictRow}
+      ${btnRow}
+    </div>`;
+}
+
+// ── Tile source ───────────────────────────────────────────────────────────────
+
 const OFFLINE_TILES = process.env.NEXT_PUBLIC_OFFLINE_TILES === "true";
 const TILE_URL = OFFLINE_TILES
   ? "/tiles/{z}/{x}/{y}.png"
   : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
+// ── Main component ────────────────────────────────────────────────────────────
+
+interface MapViewProps {
+  events: AssessedEvent[];
+  onEventClick?: (eventId: string) => void;
+}
+
 export default function MapView({ events, onEventClick }: MapViewProps) {
-  // Default center: Lekki, Lagos — overridden by FitBounds when events exist
   const defaultCenter: [number, number] = [6.4400, 3.4700];
 
   return (
@@ -87,58 +180,62 @@ export default function MapView({ events, onEventClick }: MapViewProps) {
 
       <FitBounds events={events} />
 
+      {/*
+        Two-ring zones per event:
+          1. Outer ring  — full radiusMeters, low opacity.
+             Dashed border for uncertain events.
+          2. Inner ring  — 35 % of radius, high opacity.
+             Creates an "epicentre" gradient effect without canvas.
+        Rendered in two separate loops so inner rings always paint on top.
+      */}
+
+      {/* Outer rings */}
       {events.map((event) => {
-        const color = getColor(event.confidence);
-        const radiusMeters = event.radiusMeters > 0 ? event.radiusMeters : 300;
-        const radius = Math.max(100, Math.min(radiusMeters, 3000));
-        const reportCount = event.signals?.length ?? event.signalCount;
+        const { stroke, fill } = getRiskColors(event);
+        const outerRadius = Math.max(150, Math.min(event.radiusMeters || 300, 2500));
+        const center: [number, number] = [event.latitude, event.longitude];
 
         return (
           <Circle
-            key={event.id}
-            center={[event.latitude, event.longitude] as [number, number]}
-            radius={radius}
+            key={`${event.id}-outer`}
+            center={center}
+            radius={outerRadius}
             pathOptions={{
-              color,
-              fillColor: color,
-              fillOpacity: 0.35,
-              weight: 2,
+              color:       stroke,
+              fillColor:   fill,
+              fillOpacity: event.status === "resolved" ? 0.07 : 0.13,
+              weight:      1.5,
+              dashArray:   event.status === "uncertain" ? "6 4" : undefined,
             }}
           >
             <Popup>
-              <div style={{ minWidth: "160px" }}>
-                <p style={{ fontWeight: "bold", marginBottom: "4px" }}>
-                  {getEventIcon(event.eventType)} {event.title}
-                </p>
-                <p style={{ color, fontWeight: "600", marginBottom: "4px" }}>
-                  {formatConfidence(event.confidence)} confidence
-                </p>
-                <p style={{ marginBottom: "4px", color: "#6b7280" }}>
-                  {getStatusLabel(event.status)} · {reportCount} report{reportCount !== 1 ? "s" : ""}
-                </p>
-                {event.conflicts?.length > 0 && (
-                  <p style={{ color: "#d97706", marginBottom: "4px", fontSize: "12px" }}>
-                    ⚠ {event.conflicts.length} conflict{event.conflicts.length !== 1 ? "s" : ""} detected
-                  </p>
-                )}
-                {onEventClick && (
-                  <button
-                    onClick={() => onEventClick(event.id)}
-                    style={{
-                      marginTop: "6px",
-                      fontSize: "12px",
-                      padding: "3px 10px",
-                      background: "#3b82f6",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    View details
-                  </button>
-                )}
-              </div>
+              <div dangerouslySetInnerHTML={{ __html: buildPopupHtml(event, onEventClick) }} />
+            </Popup>
+          </Circle>
+        );
+      })}
+
+      {/* Inner epicentre rings */}
+      {events.map((event) => {
+        const { stroke, fill } = getRiskColors(event);
+        const outerRadius = Math.max(150, Math.min(event.radiusMeters || 300, 2500));
+        const innerRadius = Math.round(outerRadius * 0.35);
+        const center: [number, number] = [event.latitude, event.longitude];
+
+        return (
+          <Circle
+            key={`${event.id}-inner`}
+            center={center}
+            radius={innerRadius}
+            pathOptions={{
+              color:       stroke,
+              fillColor:   fill,
+              fillOpacity: event.status === "resolved" ? 0.18 : 0.42,
+              weight:      2,
+            }}
+          >
+            <Popup>
+              <div dangerouslySetInnerHTML={{ __html: buildPopupHtml(event, onEventClick) }} />
             </Popup>
           </Circle>
         );
