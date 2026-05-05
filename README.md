@@ -9,34 +9,52 @@
 
 ## Quick Start
 
-**Prerequisites:** Node.js 20+, [Ollama](https://ollama.com) installed.
+**Prerequisites:** Node.js 20+
 
 ```bash
-# 1 — Pull the model
-ollama pull gemma4:e4b
-
-# 2 — Clone and install
 git clone https://github.com/cybort360/groundtruth
 cd groundtruth
 npm install
-
-# 3 — Configure environment
 cp .env.example .env.local
-# No edits needed for local Ollama — the app auto-detects it on localhost:11434
-
-# 4 — Start the dev server
 npm run dev
 ```
 
 Open **[http://localhost:3000](http://localhost:3000)**.
 
-The app seeds demo data automatically on first load — events appear on the map immediately. To reset or re-seed the Lagos flooding scenario manually:
+Demo data seeds automatically on first load — the Lagos flooding scenario appears on the map immediately, no AI backend needed to explore the UI.
+
+---
+
+### AI Backend Options
+
+**Option A — Local Ollama** (no internet after setup, runs fully offline)
+
+```bash
+# Install Ollama: https://ollama.com, then:
+ollama pull gemma4:e4b
+# No changes to .env.local needed — the app detects Ollama automatically.
+```
+
+**Option B — Google AI Studio** (no GPU, no Ollama, works on any machine)
+
+1. Get a free API key at [aistudio.google.com](https://aistudio.google.com) → **Get API key**
+2. Open `.env.local` and add:
+   ```
+   GOOGLE_API_KEY=your_key_here
+   ```
+3. Restart `npm run dev` — the app switches to Google's Gemma API automatically.
+
+**Option C — No AI key at all**
+
+The app still loads and shows all demo events, reasoning traces, the map, and the full UI. The only thing that won't work is pressing **Analyze** to run fresh reasoning on new reports.
+
+---
+
+To reset or re-seed the Lagos demo manually:
 
 ```bash
 npm run db:seed
 ```
-
-**No GPU? No problem.** Open Settings (gear icon, top-right) and paste a [Google AI Studio](https://aistudio.google.com) API key. The app switches to Gemma via the Google AI API with no local model required.
 
 ---
 
