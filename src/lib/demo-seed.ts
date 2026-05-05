@@ -8,7 +8,7 @@
  */
 
 import { v4 as uuid } from "uuid";
-import { getDb, insertReport, insertSignal, upsertEvent, linkSignalToEvent } from "./db";
+import { getDb, insertReport, insertSignal, upsertEvent, linkSignalToEvent, setEventThinkingTrace } from "./db";
 import type { Report, NormalizedSignal } from "@/types";
 
 /** Returns true if the DB already contains Lagos-area demo signals. */
@@ -86,6 +86,24 @@ export function seedFallbackData(): void {
     linkSignalToEvent(event1Id, sig.id);
   }
 
+  setEventThinkingTrace(event1Id, `Signal inventory: I have four signals for this cluster at the Lekki-Epe underpass area.
+
+Signal C (audio, credibility 0.72): "Road under bridge completely flooded, vehicles turning back." This is a firsthand voice report. The observer was present and describes a complete blockage — that's meaningful. Credibility is solid but audio lacks visual confirmation.
+
+Signal D (text, credibility 0.30): "I just drove through, it's fine, barely any water." This directly contradicts Signal C and the other evidence. Credibility is very low. Possible explanations: (1) this person drove through a different section of road, (2) timing — this report is older than Signal C, meaning conditions worsened after they passed, (3) the observer is minimising. I'm leaning toward explanation (2) since the timestamp predates the peak flood reports. I'll downweight this heavily.
+
+Signal E (photo, credibility 0.88): Waist-deep flooding with stranded vehicles. This is strong visual evidence. Photos are harder to fabricate than text. The description of multiple stranded vehicles is specific and alarming. High weight.
+
+Signal G (sensor, credibility 0.92): Water level sensor reads 45 cm at the underpass. This is objective measurement. 45 cm is waist-depth on a small adult — consistent with Signal E. Sensors don't lie unless they're faulty, and there's no indication of malfunction. This is my anchor signal.
+
+Contradiction analysis: Signal D vs Signals C, E, G. The weight of evidence is 3:1 against Signal D, and the supporting signals are higher-credibility types (sensor, photo, audio vs text). The temporal ordering also favours dismissing D. Resolution is clear.
+
+Confidence calibration: Three independent sources — voice, photo, sensor — all confirm severe flooding. The sensor removes subjective interpretation. The only dissenter is a low-credibility text report with a plausible alternative explanation. I'm comfortable at 88% confidence. I won't go higher because I don't have corroborating sensor data from a second location.
+
+Historical plausibility: The Lekki-Epe underpass is a known flood-prone location. This is consistent with the risk profile.
+
+Decision: active, severe flooding, confidence 0.88. Call update_event.`);
+
   // ── Event 2: Admiralty Way — moderate / improving ─────────────────────────
 
   const event2Id = uuid();
@@ -110,4 +128,20 @@ export function seedFallbackData(): void {
   for (const sig of [signals[0], signals[1], signals[5]]) {
     linkSignalToEvent(event2Id, sig.id);
   }
+
+  setEventThinkingTrace(event2Id, `Signal inventory: Three signals for Admiralty Way cluster.
+
+Signal A (text, credibility 0.45): "Heavy rain started, roads getting wet." This is the earliest report — it describes onset conditions, not active flooding. Low specificity, no depth measurement. Useful for establishing a timeline but not much else.
+
+Signal B (photo, credibility 0.65): Ankle-deep water, traffic slowing. Photo evidence is good. Ankle-deep (roughly 15–25 cm) is serious but not catastrophic. Traffic is slowing, not stopped — that's a key distinction from the underpass cluster.
+
+Signal F (audio, credibility 0.70): "Water is going down slowly, some cars starting to move again." This is the most recent report and it describes improving conditions. Credibility is higher than Signal B. The fact that cars are moving again suggests the peak has passed.
+
+Temporal reasoning: Signal A is oldest → Signal B is middle → Signal F is most recent. The trend is: rain starts → ankle-deep flooding → water receding. This is a classic flash-flood profile. The system is recovering.
+
+Contradiction analysis: Signal B (flooding) vs Signal F (improving). These aren't actually contradictory — they describe different moments in the same event's lifecycle. Signal F is simply more current.
+
+Confidence calibration: I'm uncertain here. The flooding clearly happened (Signal B is photo evidence). But Signal F suggests it's resolving. I don't have sensor data for this location. If I say "active" I might be wrong by the time someone acts on it. If I say "resolved" I might be wrong too — the water could return.
+
+I'll set status to "uncertain" at 0.62 confidence. The flooding is real but the current state is unclear. Someone approaching Admiralty Way should proceed with caution and be ready to turn around.`);
 }

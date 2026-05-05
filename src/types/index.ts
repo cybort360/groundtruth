@@ -60,6 +60,15 @@ export interface AssessedEvent {
   firstReported: string;
   lastUpdated: string;
   signalCount: number;
+  /**
+   * Which model tier assessed this event.
+   * "local"  → Gemma E4B via Ollama (simple cluster, on-device)
+   * "cloud"  → Gemma 27B via Google API (high-complexity conflict escalation)
+   * "local-fallback" → heuristic fallback, no LLM call
+   */
+  assessedBy?: "local" | "cloud" | "local-fallback";
+  /** Raw chain-of-thought trace from Gemma 4's native thinking mode (<|think|>). */
+  thinkingTrace?: string;
   signals: NormalizedSignal[];
   conflicts: ConflictPair[];
 }

@@ -17,12 +17,15 @@
 import { agenticLoop } from "./gemma";
 import { executeTool } from "./tools";
 import { geoCluster } from "./tools/geo-cluster";
-import { getAllSignals, getActiveEvents, getEventSignals, linkSignalToEvent } from "./db";
+import { getAllSignals, getActiveEvents, getEventSignals, linkSignalToEvent, setEventAssessedBy, setEventThinkingTrace } from "./db";
 import {
   CLUSTER_ASSESSMENT_SYSTEM_PROMPT,
   CLUSTER_ASSESSMENT_TOOLS,
   buildClusterPrompt,
 } from "./prompts/reasoning";
+import { assessClusterComplexity, routeBackendType, assessedByLabel } from "./complexity-router";
+import { getBackendByType } from "./gemma-backends";
+import { loadSettings } from "./gemma-backends/settings";
 import type { GemmaMessage, AssessedEvent, ReasoningOutput, NormalizedSignal } from "@/types";
 
 const CLUSTER_RADIUS_METERS = 500;
@@ -59,11 +62,30 @@ export async function runReasoning(): Promise<ReasoningOutput> {
 
   // ── Phase 2: One focused agentic loop per cluster ─────────────────────────
   const allThinkingTraces: string[] = [];
+  const settings = loadSettings();
 
   for (let i = 0; i < clusterResult.clusters.length; i++) {
     const cluster = clusterResult.clusters[i];
 
     if (cluster.signals.length === 0) continue;
+
+    // ── Complexity-based routing ────────────────────────────────────────────
+    const complexity   = assessClusterComplexity(cluster.signals);
+    const backendType  = routeBackendType(complexity, settings.backend);
+    const backend      = await getBackendByType(backendType);
+    const routingLabel = assessedByLabel(backendType);
+
+    if (complexity.level === "complex") {
+      console.log(
+        `[routing] Cluster ${i + 1}: HIGH COMPLEXITY — escalating to ${backend.name}. ` +
+        `Reasons: ${complexity.reasons.join(" | ")}`
+      );
+    } else {
+      console.log(
+        `[routing] Cluster ${i + 1}: simple cluster — using ${backend.name} (local).`
+      );
+    }
+    // ── End routing ─────────────────────────────────────────────────────────
 
     const messages: GemmaMessage[] = [
       {
@@ -73,6 +95,12 @@ export async function runReasoning(): Promise<ReasoningOutput> {
       {
         role: "user",
         content: buildClusterPrompt(cluster, i, clusterResult.totalClusters),
+      },
+      // Pre-fill the assistant turn with Gemma 4's thinking token so the model
+      // enters its chain-of-thought mode before calling any tools.
+      {
+        role: "assistant",
+        content: "<|think|>\nLet me carefully analyze the signals in this cluster.\n",
       },
     ];
 
@@ -84,11 +112,12 @@ export async function runReasoning(): Promise<ReasoningOutput> {
         {
           maxIterations: MAX_ITERATIONS_PER_CLUSTER,
           thinking: true,
+          backend,
         }
       );
 
       if (result.thinkingTrace) {
-        allThinkingTraces.push(`[Cluster ${i + 1}]\n${result.thinkingTrace}`);
+        allThinkingTraces.push(`[Cluster ${i + 1} · ${backend.name}]\n${result.thinkingTrace}`);
       }
 
       // Log for debugging — check whether update_event was actually called
@@ -99,15 +128,19 @@ export async function runReasoning(): Promise<ReasoningOutput> {
         `[reasoning] Cluster ${i + 1}/${clusterResult.totalClusters}: ` +
         `${cluster.signals.length} signals, ` +
         `${result.toolCallHistory.length} tool calls, ` +
-        `${persistCalls.length} update_event call(s)`
+        `${persistCalls.length} update_event call(s), ` +
+        `model: ${backend.name}`
       );
+
+      // Capture the thinking trace for this cluster (concatenated across turns)
+      const clusterTrace = result.thinkingTrace?.trim() ?? "";
 
       if (persistCalls.length === 0) {
         // Gemma failed to call update_event — fall back to a direct persist
         // using pre-computed values so the cluster isn't silently dropped.
         console.warn(`[reasoning] Cluster ${i + 1}: Gemma did not call update_event. Using fallback persister.`);
         const fallbackId = await fallbackPersist(cluster, i);
-        // Link signals to fallback event
+        setEventAssessedBy(fallbackId, "local-fallback");
         for (const signal of cluster.signals) {
           linkSignalToEvent(fallbackId, signal.id);
         }
@@ -116,6 +149,10 @@ export async function runReasoning(): Promise<ReasoningOutput> {
         for (const call of persistCalls) {
           const callResult = call.result as { eventId?: string } | undefined;
           if (callResult?.eventId) {
+            setEventAssessedBy(callResult.eventId, routingLabel);
+            if (clusterTrace) {
+              setEventThinkingTrace(callResult.eventId, clusterTrace);
+            }
             for (const signal of cluster.signals) {
               linkSignalToEvent(callResult.eventId!, signal.id);
             }
@@ -124,8 +161,8 @@ export async function runReasoning(): Promise<ReasoningOutput> {
       }
     } catch (err) {
       console.error(`[reasoning] Cluster ${i + 1} failed:`, err);
-      // Persist a low-confidence fallback so the cluster still appears
-      await fallbackPersist(cluster, i);
+      const fallbackId = await fallbackPersist(cluster, i);
+      setEventAssessedBy(fallbackId, "local-fallback");
     }
   }
 

@@ -10,6 +10,7 @@
 
 import type { GemmaMessage, ToolDefinition } from "@/types";
 import { getBackend } from "./gemma-backends";
+import type { GemmaBackend } from "./gemma-backends/types";
 
 interface ChatResponse {
   message: {
@@ -37,9 +38,11 @@ async function callBackend(
     temperature?: number;
     maxTokens?: number;
     thinking?: boolean;
+    /** Optional backend override — used by the complexity router for per-cluster routing. */
+    backend?: GemmaBackend;
   }
 ): Promise<ChatResponse> {
-  const backend = await getBackend();
+  const backend = options?.backend ?? await getBackend();
   const res = await backend.chat(messages, options);
 
   return {
@@ -91,7 +94,7 @@ export async function agenticLoop(
   messages: GemmaMessage[],
   tools: ToolDefinition[],
   toolExecutor: (name: string, args: Record<string, unknown>) => Promise<unknown>,
-  options?: { maxIterations?: number; thinking?: boolean }
+  options?: { maxIterations?: number; thinking?: boolean; backend?: GemmaBackend }
 ): Promise<{
   finalResponse: string;
   toolCallHistory: Array<{ name: string; args: Record<string, unknown>; result: unknown }>;
@@ -107,6 +110,7 @@ export async function agenticLoop(
       tools,
       thinking: options?.thinking,
       temperature: 0.3,
+      backend: options?.backend,
     });
 
     if (response.message.thinking) {

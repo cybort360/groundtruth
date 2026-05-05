@@ -26,6 +26,13 @@ function getGuidance(type: string, section: "avoid" | "caution") {
   return (TYPE_GUIDANCE[type] ?? TYPE_GUIDANCE.other)[section];
 }
 
+function confLabel(confidence: number): string {
+  if (confidence >= 0.90) return "Very High Confidence";
+  if (confidence >= 0.70) return "High Confidence";
+  if (confidence >= 0.50) return "Uncertain";
+  return "Low Confidence";
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function SectionLabel({
@@ -62,13 +69,18 @@ function AvoidCard({ event }: { event: AssessedEvent }) {
           <EventTypeIcon type={event.eventType} className="w-4 h-4" />
         </span>
         <div className="flex-1 min-w-0">
-          <div className="flex items-baseline justify-between gap-2">
+          <div className="flex items-start justify-between gap-2">
             <p className="text-sm font-semibold text-slate-900 leading-snug line-clamp-1">
               {event.title}
             </p>
-            <span className="text-xs font-bold text-rose-600 flex-shrink-0">
-              {Math.round(event.confidence * 100)}%
-            </span>
+            <div className="flex flex-col items-end flex-shrink-0">
+              <span className="text-xs font-bold text-rose-600">
+                {Math.round(event.confidence * 100)}%
+              </span>
+              <span className="text-[10px] text-rose-400 font-medium whitespace-nowrap">
+                {confLabel(event.confidence)}
+              </span>
+            </div>
           </div>
           <p className="text-xs text-rose-700 mt-1 leading-relaxed">
             {getGuidance(event.eventType, "avoid")}
@@ -87,13 +99,18 @@ function CautionCard({ event }: { event: AssessedEvent }) {
           <EventTypeIcon type={event.eventType} className="w-4 h-4" />
         </span>
         <div className="flex-1 min-w-0">
-          <div className="flex items-baseline justify-between gap-2">
+          <div className="flex items-start justify-between gap-2">
             <p className="text-sm font-semibold text-slate-900 leading-snug line-clamp-1">
               {event.title}
             </p>
-            <span className="text-xs font-bold text-amber-600 flex-shrink-0">
-              {Math.round(event.confidence * 100)}%
-            </span>
+            <div className="flex flex-col items-end flex-shrink-0">
+              <span className="text-xs font-bold text-amber-600">
+                {Math.round(event.confidence * 100)}%
+              </span>
+              <span className="text-[10px] text-amber-400 font-medium whitespace-nowrap">
+                {confLabel(event.confidence)}
+              </span>
+            </div>
           </div>
           <p className="text-xs text-amber-700 mt-1 leading-relaxed">
             {getGuidance(event.eventType, "caution")}
@@ -111,9 +128,16 @@ function ClearRow({ event }: { event: AssessedEvent }) {
         <EventTypeIcon type={event.eventType} className="w-4 h-4" />
       </span>
       <span className="text-sm text-slate-700 flex-1 truncate">{event.title}</span>
-      <span className="text-xs text-emerald-600 font-medium flex-shrink-0">
-        {event.status === "resolved" ? "Resolved" : `${Math.round(event.confidence * 100)}%`}
-      </span>
+      <div className="flex flex-col items-end flex-shrink-0">
+        <span className="text-xs text-emerald-600 font-bold">
+          {event.status === "resolved" ? "Resolved" : `${Math.round(event.confidence * 100)}%`}
+        </span>
+        {event.status !== "resolved" && (
+          <span className="text-[10px] text-emerald-400 font-medium whitespace-nowrap">
+            {confLabel(event.confidence)}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

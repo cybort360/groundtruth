@@ -53,4 +53,25 @@ export function invalidateBackendCache(): void {
   _cachedAt = 0;
 }
 
+/**
+ * Return a specific backend by type — no caching, used for per-cluster
+ * routing where each cluster may use a different model.
+ *
+ * Falls back to Ollama if "google" is requested but no API key is configured.
+ */
+export async function getBackendByType(
+  type: "ollama" | "google",
+): Promise<GemmaBackend> {
+  const settings = loadSettings();
+  if (type === "google") {
+    if (settings.googleApiKey) {
+      return new GoogleGemmaBackend(settings.googleApiKey, settings.googleModel);
+    }
+    // No API key — fall back to local rather than erroring
+    console.warn("[routing] Cloud routing requested but no GOOGLE_API_KEY set. Falling back to Ollama.");
+    return new OllamaBackend(settings.ollamaBaseUrl, settings.ollamaModel);
+  }
+  return new OllamaBackend(settings.ollamaBaseUrl, settings.ollamaModel);
+}
+
 export type { GemmaBackend, AppSettings, BackendType } from "./types";

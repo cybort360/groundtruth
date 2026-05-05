@@ -55,7 +55,7 @@ function PeerRow({ peer }: { peer: Peer }) {
 }
 
 export default function MeshStatus({ isOffline }: { isOffline: boolean }) {
-  const [mesh, setMesh]       = useState<MeshData | null>(null);
+  const [mesh, setMesh]         = useState<MeshData | null>(null);
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
@@ -75,15 +75,30 @@ export default function MeshStatus({ isOffline }: { isOffline: boolean }) {
   const peerCount   = mesh?.peerCount ?? 0;
   const meshRunning = mesh && !mesh.error;
 
-  const statusDot   =
-    !meshRunning     ? "bg-slate-300"  :
-    peerCount === 0  ? "bg-amber-400"  :
-                       "bg-teal-400";
+  // ── Sync status ─────────────────────────────────────────────────────────────
+  const lastSync            = mesh?.syncLog[0] ?? null;
+  const lastSyncAgeSecs     = lastSync ? Math.round((Date.now() - lastSync.ts) / 1000) : null;
+  const recentlySynced      = lastSyncAgeSecs !== null && lastSyncAgeSecs < 30;
+  const totalSignals        = mesh?.peers.reduce((n, p) => n + p.signalsReceived, 0) ?? 0;
+  const uniqueSyncPeers     = mesh ? new Set(mesh.syncLog.map((e) => e.from)).size : 0;
+
+  const syncStatusLine =
+    lastSyncAgeSecs !== null
+      ? `Last synced ${getRelativeTime(lastSyncAgeSecs)} · ${totalSignals} signal${totalSignals !== 1 ? "s" : ""} from ${uniqueSyncPeers} peer${uniqueSyncPeers !== 1 ? "s" : ""}`
+      : peerCount > 0
+      ? "Connected — waiting for peer reports"
+      : null;
+
+  // ── Status indicators ────────────────────────────────────────────────────────
+  const statusDot =
+    !meshRunning    ? "bg-slate-300" :
+    peerCount === 0 ? "bg-amber-400" :
+                      "bg-teal-400";
 
   const statusLabel =
-    !meshRunning     ? "Mesh not running" :
-    peerCount === 0  ? "Searching for peers…" :
-                       `${peerCount} device${peerCount !== 1 ? "s" : ""} connected`;
+    !meshRunning    ? "Mesh not running" :
+    peerCount === 0 ? "Searching for peers…" :
+                      `${peerCount} device${peerCount !== 1 ? "s" : ""} on this network`;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -96,7 +111,7 @@ export default function MeshStatus({ isOffline }: { isOffline: boolean }) {
         {/* Mesh topology icon */}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}
           strokeLinecap="round" strokeLinejoin="round"
-          className="w-4 h-4 text-teal-600 flex-shrink-0" aria-hidden="true">
+          className={`w-4 h-4 text-teal-600 flex-shrink-0 ${recentlySynced ? "ring-pulse" : ""}`} aria-hidden="true">
           <circle cx="12" cy="5" r="2" />
           <circle cx="5" cy="19" r="2" />
           <circle cx="19" cy="19" r="2" />
@@ -118,6 +133,9 @@ export default function MeshStatus({ isOffline }: { isOffline: boolean }) {
             <span className={`w-1.5 h-1.5 rounded-full ${statusDot}`} />
             <span className="text-xs text-slate-500">{statusLabel}</span>
           </div>
+          {syncStatusLine && (
+            <p className="text-[10px] text-teal-600 mt-0.5 truncate">{syncStatusLine}</p>
+          )}
         </div>
 
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}

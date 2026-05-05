@@ -1,4 +1,5 @@
 import ReportForm from "@/components/ReportForm";
+import EmergencyPanel from "@/components/EmergencyPanel";
 import Link from "next/link";
 
 export default function ReportPage() {
@@ -27,7 +28,23 @@ export default function ReportPage() {
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-5 pb-10">
-        <ReportForm />
+        <EmergencyPanel />
+
+        {/* Divider */}
+        <div className="mt-6 relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-slate-200" />
+          </div>
+          <div className="relative flex justify-center">
+            <span className="bg-slate-50 px-3 text-xs text-slate-400 font-medium">
+              Submit a report
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <ReportForm />
+        </div>
       </div>
     </div>
   );

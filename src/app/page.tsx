@@ -21,6 +21,17 @@ function getRelativeTime(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+// ── Low-bandwidth detection ───────────────────────────────────────────────────
+
+type NavConnection = EventTarget & { effectiveType?: string; saveData?: boolean };
+
+function detectSlowConnection(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const conn = (navigator as { connection?: NavConnection }).connection;
+  if (!conn) return false;
+  return conn.saveData === true || conn.effectiveType === "slow-2g" || conn.effectiveType === "2g";
+}
+
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
 function SkeletonCard() {
@@ -61,44 +72,89 @@ const ALL_EVENT_TYPES = [
 export default function DashboardPage() {
   const [events, setEvents]                     = useState<AssessedEvent[]>([]);
   const [loading, setLoading]                   = useState(true);
+  const [refreshing, setRefreshing]             = useState(false);
+  const [changedIds, setChangedIds]             = useState<Set<string>>(new Set());
   const [error, setError]                       = useState<string | null>(null);
   const [lastUpdated, setLastUpdated]           = useState<string | null>(null);
   const [filterType, setFilterType]             = useState<string>("all");
   const [minConfidence, setMinConfidence]       = useState<number>(0);
   const [sortOrder, setSortOrder]               = useState<"confidence" | "recency">("confidence");
-  const [showSortMenu, setShowSortMenu]         = useState(false);
+  const [showFilterMenu, setShowFilterMenu]     = useState(false);
+  const [mapExpanded, setMapExpanded]           = useState(false);
+  const [lowBandwidth, setLowBandwidth]         = useState(false);
+  const [showOverflow, setShowOverflow]         = useState(false);
+  const [timeframeDays, setTimeframeDays]       = useState<1 | 3 | 7>(7);
   const { isOffline, ollamaReachable }          = useOffline();
   const intervalRef                             = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Track previous confidence per event ID to detect changes between polls.
+  const prevConfidence                          = useRef<Map<string, number>>(new Map());
 
-  const fetchEvents = useCallback(async () => {
+  const fetchEvents = useCallback(async (isBackground = false) => {
+    if (isBackground) setRefreshing(true);
+    else setLoading(true);
     try {
       const res = await fetch("/api/events");
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
       const data = (await res.json()) as { events: AssessedEvent[]; lastUpdated: string };
+
+      // Find events whose confidence shifted since the last poll.
+      const changed = new Set<string>();
+      for (const e of data.events) {
+        const prev = prevConfidence.current.get(e.id);
+        if (prev !== undefined && Math.abs(prev - e.confidence) > 0.005) {
+          changed.add(e.id);
+        }
+      }
+      prevConfidence.current = new Map(data.events.map((e) => [e.id, e.confidence]));
+
       setEvents(data.events);
       setLastUpdated(data.lastUpdated);
       setError(null);
+
+      if (changed.size > 0) {
+        setChangedIds(changed);
+        // Clear after the flash animation finishes (1 s).
+        setTimeout(() => setChangedIds(new Set()), 1200);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load events");
     } finally {
-      setLoading(false);
+      if (isBackground) setRefreshing(false);
+      else setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void fetchEvents();
-    intervalRef.current = setInterval(() => void fetchEvents(), 30_000);
+    void fetchEvents(false);
+    intervalRef.current = setInterval(() => void fetchEvents(true), 30_000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
   }, [fetchEvents]);
 
+  // Auto-detect slow connection on mount and on connection change.
+  useEffect(() => {
+    setLowBandwidth(detectSlowConnection());
+    const conn = (navigator as { connection?: NavConnection }).connection;
+    if (!conn) return;
+    const onchange = () => setLowBandwidth(detectSlowConnection());
+    conn.addEventListener("change", onchange);
+    return () => conn.removeEventListener("change", onchange);
+  }, []);
+
   // ── Derived ──────────────────────────────────────────────────────────────
 
-  const typeCounts = events.reduce<Record<string, number>>((acc, e) => {
+  // Hard cutoff: events older than the selected timeframe are invisible.
+  // 7 days is the maximum — nothing stale survives regardless of other filters.
+  const cutoffMs = timeframeDays * 24 * 60 * 60 * 1000;
+  const timeframeEvents = events.filter(
+    (e) => Date.now() - new Date(e.lastUpdated).getTime() <= cutoffMs
+  );
+
+  const typeCounts = timeframeEvents.reduce<Record<string, number>>((acc, e) => {
     acc[e.eventType] = (acc[e.eventType] ?? 0) + 1;
     return acc;
   }, {});
 
-  const visibleEvents = events
+  const visibleEvents = timeframeEvents
     .filter((e) => filterType === "all" || e.eventType === filterType)
     .filter((e) => e.confidence * 100 >= minConfidence)
     .sort((a, b) =>
@@ -107,7 +163,7 @@ export default function DashboardPage() {
         : new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
     );
 
-  const hasEvents = !loading && error === null && events.length > 0;
+  const hasEvents = !loading && error === null && timeframeEvents.length > 0;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -162,32 +218,82 @@ export default function DashboardPage() {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            {/* Refresh */}
-            <button
-              onClick={() => { setLoading(true); void fetchEvents(); }}
-              className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
-              aria-label="Refresh"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}
-                strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <polyline points="23 4 23 10 17 10" />
-                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-              </svg>
-            </button>
-            {/* Settings */}
-            <a
-              href="/settings"
-              className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
-              aria-label="Settings"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}
-                strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
-            </a>
-            {/* Submit report */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+
+            {/* ⋮ Overflow menu */}
+            <div className="relative">
+              <button
+                onClick={() => setShowOverflow((v) => !v)}
+                className="w-8 h-8 flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 transition-colors relative"
+                aria-label="More options"
+                aria-expanded={showOverflow}
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
+                  <circle cx="12" cy="5"  r="1.5" />
+                  <circle cx="12" cy="12" r="1.5" />
+                  <circle cx="12" cy="19" r="1.5" />
+                </svg>
+                {/* Amber dot when data saver is on */}
+                {lowBandwidth && (
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-amber-400 rounded-full border border-teal-700" />
+                )}
+              </button>
+
+              {showOverflow && (
+                <div className="absolute right-0 top-full mt-2 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden z-40 w-52">
+
+                  {/* Refresh */}
+                  <button
+                    onClick={() => { void fetchEvents(true); setShowOverflow(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                      strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-slate-400 flex-shrink-0">
+                      <polyline points="23 4 23 10 17 10" />
+                      <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                    </svg>
+                    <span className="font-medium">Refresh data</span>
+                  </button>
+
+                  {/* Data saver toggle */}
+                  <button
+                    onClick={() => setLowBandwidth((v) => !v)}
+                    className="w-full flex items-center gap-3 px-4 py-3.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-50"
+                  >
+                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-slate-400 flex-shrink-0" aria-hidden="true">
+                      <rect x="2"  y="16" width="4" height="6" rx="1" />
+                      <rect x="9"  y="11" width="4" height="11" rx="1" opacity="0.6" />
+                      <rect x="16" y="4"  width="4" height="18" rx="1" opacity="0.3" />
+                    </svg>
+                    <span className="font-medium flex-1 text-left">Data saver</span>
+                    {/* iOS-style toggle */}
+                    <div className={`w-10 h-6 rounded-full flex items-center px-1 transition-colors duration-200 flex-shrink-0 ${
+                      lowBandwidth ? "bg-teal-500" : "bg-slate-200"
+                    }`}>
+                      <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform duration-200 ${
+                        lowBandwidth ? "translate-x-4" : "translate-x-0"
+                      }`} />
+                    </div>
+                  </button>
+
+                  {/* Settings */}
+                  <a
+                    href="/settings"
+                    onClick={() => setShowOverflow(false)}
+                    className="flex items-center gap-3 px-4 py-3.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors border-t border-slate-50"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                      strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-slate-400 flex-shrink-0">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                    <span className="font-medium">Settings</span>
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Submit report — primary CTA */}
             <a
               href="/report"
               className="flex items-center gap-1.5 bg-white text-teal-700 font-semibold text-xs px-3 py-1.5 rounded-xl hover:bg-teal-50 transition-colors"
@@ -205,61 +311,102 @@ export default function DashboardPage() {
 
       <div className="max-w-2xl mx-auto px-4 pb-8">
 
-        {/* ── Map strip ── */}
-        <div className="mt-4 rounded-2xl overflow-hidden border border-slate-200 shadow-sm" style={{ height: 280 }}>
-          <MapViewLoader events={visibleEvents} />
-        </div>
+        {/* ── Low-bandwidth banner ── */}
+        {lowBandwidth && (
+          <div className="mt-4 flex items-center justify-between bg-slate-800 text-white rounded-2xl px-4 py-2.5">
+            <div className="flex items-center gap-2.5">
+              <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-amber-400 flex-shrink-0" aria-hidden="true">
+                <rect x="2"  y="16" width="4" height="6" rx="1" opacity="0.35" />
+                <rect x="9"  y="11" width="4" height="11" rx="1" opacity="0.35" />
+                <rect x="16" y="4"  width="4" height="18" rx="1" opacity="0.35" />
+                <line x1="3" y1="21" x2="21" y2="3" stroke="#fbbf24" strokeWidth="2.5" strokeLinecap="round" />
+              </svg>
+              <div>
+                <p className="text-xs font-semibold text-white leading-tight">Data saver on</p>
+                <p className="text-[10px] text-slate-400 leading-tight">Map hidden · all reports still visible</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setLowBandwidth(false)}
+              className="text-[11px] font-semibold text-teal-400 hover:text-teal-300 transition-colors flex-shrink-0 ml-3"
+            >
+              Show full view
+            </button>
+          </div>
+        )}
 
-        {/* ── Filter + sort bar ── */}
+        {/* ── Map strip (context aid, not the hero) ── */}
+        {!lowBandwidth && (
+          <div className="mt-4">
+            {/* Map container — always mounted so Leaflet tiles stay loaded.
+                isolation:isolate traps Leaflet's internal z-indexes (200-400)
+                so they can't paint over the header dropdown. */}
+            <div
+              className="rounded-2xl overflow-hidden border border-slate-100 transition-all duration-300"
+              style={{ height: mapExpanded ? 260 : 148, isolation: "isolate" }}
+            >
+              <MapViewLoader events={visibleEvents} />
+            </div>
+
+            {/* Expand / collapse toggle */}
+            <button
+              onClick={() => setMapExpanded((v) => !v)}
+              className="mt-1.5 flex items-center gap-1 text-[11px] text-slate-400 hover:text-teal-600 transition-colors mx-auto block"
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2}
+                strokeLinecap="round" strokeLinejoin="round"
+                className={`w-3 h-3 transition-transform duration-200 ${mapExpanded ? "rotate-180" : ""}`}>
+                <path d="M4 6l4 4 4-4" />
+              </svg>
+              {mapExpanded ? "Collapse map" : "Expand map"}
+            </button>
+          </div>
+        )}
+
+        {/* ── Type pills + unified Filter button ── */}
         <div className="mt-4 flex items-center gap-2">
+
           {/* Horizontally scrollable type pills */}
           <div className="flex-1 overflow-x-auto scrollbar-none">
             <div className="flex items-center gap-1.5 w-max pr-2">
-              {/* All pill */}
               <button
                 onClick={() => setFilterType("all")}
-                className={`
-                  flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors
-                  ${filterType === "all"
+                className={`flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+                  filterType === "all"
                     ? "bg-teal-600 text-white shadow-sm"
-                    : "bg-white text-slate-600 border border-slate-200 hover:border-teal-300"}
-                `}
+                    : "bg-white text-slate-600 border border-slate-200 hover:border-teal-300"
+                }`}
               >
                 All
                 {hasEvents && (
                   <span className={`ml-1 ${filterType === "all" ? "text-teal-200" : "text-slate-400"}`}>
-                    {events.length}
+                    {timeframeEvents.length}
                   </span>
                 )}
               </button>
 
-              {/* All 13 type pills — types with events are vivid, empty ones fade back */}
               {ALL_EVENT_TYPES.map(({ value, label }) => {
-                const count = typeCounts[value] ?? 0;
-                const active = filterType === value;
+                const count   = typeCounts[value] ?? 0;
+                const active  = filterType === value;
                 const hasData = count > 0;
-
                 return (
                   <button
                     key={value}
                     onClick={() => setFilterType(value)}
-                    className={`
-                      flex-shrink-0 flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full transition-all
-                      ${active
+                    className={`flex-shrink-0 flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full transition-all ${
+                      active
                         ? "bg-teal-600 text-white shadow-sm"
                         : hasData
                           ? "bg-white text-slate-600 border border-slate-200 hover:border-teal-300"
-                          : "bg-white text-slate-400 border border-slate-100 hover:border-slate-300 opacity-60"}
-                    `}
+                          : "bg-white text-slate-400 border border-slate-100 opacity-50"
+                    }`}
                   >
                     <span className={active ? "text-teal-200" : hasData ? "text-slate-500" : "text-slate-300"}>
                       <EventTypeIcon type={value} className="w-3.5 h-3.5" />
                     </span>
-                    <span>{label}</span>
+                    {label}
                     {hasData && (
-                      <span className={active ? "text-teal-200" : "text-slate-400"}>
-                        {count}
-                      </span>
+                      <span className={active ? "text-teal-200" : "text-slate-400"}>{count}</span>
                     )}
                   </button>
                 );
@@ -267,68 +414,126 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Sort button */}
-          <div className="relative flex-shrink-0">
-            <button
-              onClick={() => setShowSortMenu((v) => !v)}
-              className="flex items-center gap-1 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 hover:border-teal-300 transition-colors"
-              aria-label="Sort events"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
-                strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
-                <line x1="8" y1="6" x2="21" y2="6" />
-                <line x1="8" y1="12" x2="21" y2="12" />
-                <line x1="8" y1="18" x2="21" y2="18" />
-                <line x1="3" y1="6" x2="3.01" y2="6" />
-                <line x1="3" y1="12" x2="3.01" y2="12" />
-                <line x1="3" y1="18" x2="3.01" y2="18" />
-              </svg>
-              {sortOrder === "confidence" ? "Confidence" : "Recent"}
-            </button>
+          {/* Unified Filter button */}
+          {(() => {
+            const activeCount =
+              (sortOrder !== "confidence" ? 1 : 0) +
+              (minConfidence > 0 ? 1 : 0) +
+              (timeframeDays < 7 ? 1 : 0);
 
-            {showSortMenu && (
-              <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-20 min-w-[140px]">
-                {(["confidence", "recency"] as const).map((val) => (
-                  <button
-                    key={val}
-                    onClick={() => { setSortOrder(val); setShowSortMenu(false); }}
-                    className={`
-                      w-full text-left text-xs px-3 py-2.5 transition-colors
-                      ${sortOrder === val
-                        ? "bg-teal-50 text-teal-700 font-semibold"
-                        : "text-slate-600 hover:bg-slate-50"}
-                    `}
-                  >
-                    {val === "confidence" ? "By confidence" : "By recency"}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Confidence threshold pills ── */}
-        <div className="mt-2.5 flex items-center gap-1.5">
-          <span className="text-[11px] font-medium text-slate-400 flex-shrink-0">Min confidence</span>
-          <div className="flex items-center gap-1">
-            {([0, 50, 75, 90] as const).map((threshold) => {
-              const active = minConfidence === threshold;
-              return (
+            return (
+              <div className="relative flex-shrink-0">
                 <button
-                  key={threshold}
-                  onClick={() => setMinConfidence(threshold)}
-                  className={`
-                    text-[11px] font-semibold px-2.5 py-1 rounded-full transition-all
-                    ${active
-                      ? "bg-teal-600 text-white shadow-sm"
-                      : "bg-white text-slate-500 border border-slate-200 hover:border-teal-300"}
-                  `}
+                  onClick={() => setShowFilterMenu((v) => !v)}
+                  aria-label="Filter and sort"
+                  aria-expanded={showFilterMenu}
+                  className={`relative flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-xl border transition-colors ${
+                    activeCount > 0
+                      ? "bg-teal-600 text-white border-teal-600"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-teal-300"
+                  }`}
                 >
-                  {threshold === 0 ? "Any" : `${threshold}%+`}
+                  {/* Funnel icon */}
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}
+                    strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                    <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+                  </svg>
+                  Filter
+                  {activeCount > 0 && (
+                    <span className="flex items-center justify-center w-4 h-4 rounded-full bg-white text-teal-700 text-[10px] font-bold leading-none">
+                      {activeCount}
+                    </span>
+                  )}
                 </button>
-              );
-            })}
-          </div>
+
+                {showFilterMenu && (
+                  <div className="absolute right-0 top-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl z-20 w-56 overflow-hidden">
+
+                    {/* Sort by */}
+                    <div className="px-3.5 pt-3 pb-2">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Sort by</p>
+                      <div className="flex gap-1.5">
+                        {(["confidence", "recency"] as const).map((val) => (
+                          <button
+                            key={val}
+                            onClick={() => setSortOrder(val)}
+                            className={`flex-1 text-xs font-semibold py-1.5 rounded-lg transition-colors ${
+                              sortOrder === val
+                                ? "bg-teal-600 text-white"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            }`}
+                          >
+                            {val === "confidence" ? "Confidence" : "Recent"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="mx-3.5 border-t border-slate-100" />
+
+                    {/* Confidence */}
+                    <div className="px-3.5 py-2.5">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Min confidence</p>
+                      <div className="flex gap-1">
+                        {([0, 50, 75, 90] as const).map((t) => (
+                          <button
+                            key={t}
+                            onClick={() => setMinConfidence(t)}
+                            className={`flex-1 text-[11px] font-semibold py-1.5 rounded-lg transition-colors ${
+                              minConfidence === t
+                                ? "bg-teal-600 text-white"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            }`}
+                          >
+                            {t === 0 ? "Any" : `${t}%`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="mx-3.5 border-t border-slate-100" />
+
+                    {/* Timeframe */}
+                    <div className="px-3.5 py-2.5">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Timeframe</p>
+                      <div className="flex gap-1.5">
+                        {([1, 3, 7] as const).map((days) => (
+                          <button
+                            key={days}
+                            onClick={() => setTimeframeDays(days)}
+                            className={`flex-1 text-xs font-semibold py-1.5 rounded-lg transition-colors ${
+                              timeframeDays === days
+                                ? "bg-teal-600 text-white"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            }`}
+                          >
+                            {days === 1 ? "24h" : `${days}d`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Reset — only shown when something is non-default */}
+                    {activeCount > 0 && (
+                      <>
+                        <div className="mx-3.5 border-t border-slate-100" />
+                        <button
+                          onClick={() => {
+                            setSortOrder("confidence");
+                            setMinConfidence(0);
+                            setTimeframeDays(7);
+                          }}
+                          className="w-full text-xs font-semibold text-slate-400 hover:text-rose-500 py-2.5 px-3.5 text-left transition-colors"
+                        >
+                          Reset filters
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* ── Status banner ── */}
@@ -373,7 +578,7 @@ export default function DashboardPage() {
           <p className="mt-2.5 text-xs text-slate-400 font-medium px-0.5">
             {visibleEvents.length === 0
               ? "No events match your filter"
-              : `${visibleEvents.length} situation${visibleEvents.length !== 1 ? "s" : ""} assessed`}
+              : `${visibleEvents.length} situation${visibleEvents.length !== 1 ? "s" : ""} · last ${timeframeDays === 1 ? "24 hours" : `${timeframeDays} days`}`}
           </p>
         )}
 
@@ -392,8 +597,15 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* ── Background-refresh sweep bar ── */}
+        {refreshing && (
+          <div className="mt-3 h-0.5 bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-full w-1/3 bg-teal-400 rounded-full animate-sweep-bar" />
+          </div>
+        )}
+
         {/* ── Event cards ── */}
-        <div className="mt-3 space-y-2.5">
+        <div className={`mt-3 space-y-2.5 transition-opacity duration-300 ${refreshing ? "opacity-75" : "opacity-100"}`}>
           {loading ? (
             <>
               <SkeletonCard />
@@ -443,7 +655,7 @@ export default function DashboardPage() {
             )
           ) : (
             visibleEvents.map((event) => (
-              <EventCard key={event.id} event={event} />
+              <EventCard key={event.id} event={event} isUpdating={changedIds.has(event.id)} />
             ))
           )}
         </div>
@@ -457,13 +669,18 @@ export default function DashboardPage() {
         <div className="mt-3">
           <MeshStatus isOffline={isOffline} />
         </div>
+
+        {/* ── System identity ── */}
+        <p className="mt-6 mb-2 text-center text-[11px] text-slate-400 tracking-wide">
+          On-device AI reasoning. Works without internet.
+        </p>
       </div>
 
-      {/* ── Click-away for sort menu ── */}
-      {showSortMenu && (
+      {/* ── Click-away for menus ── */}
+      {(showFilterMenu || showOverflow) && (
         <div
           className="fixed inset-0 z-10"
-          onClick={() => setShowSortMenu(false)}
+          onClick={() => { setShowFilterMenu(false); setShowOverflow(false); }}
           aria-hidden="true"
         />
       )}

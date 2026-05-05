@@ -85,6 +85,16 @@ function initializeSchema() {
     CREATE INDEX IF NOT EXISTS idx_events_geo ON events(latitude, longitude);
     CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
   `);
+
+  // Migrations: add columns if they don't exist yet.
+  // SQLite doesn't support "ADD COLUMN IF NOT EXISTS", so we try/catch each.
+  try {
+    database.exec(`ALTER TABLE events ADD COLUMN assessed_by TEXT DEFAULT 'local'`);
+  } catch { /* column already exists */ }
+
+  try {
+    database.exec(`ALTER TABLE events ADD COLUMN thinking_trace TEXT`);
+  } catch { /* column already exists */ }
 }
 
 // --- Report Operations ---
@@ -206,6 +216,18 @@ export function getActiveEvents(): AssessedEvent[] {
   return rows.map(mapEvent);
 }
 
+export function setEventAssessedBy(eventId: string, assessedBy: string): void {
+  getDb()
+    .prepare("UPDATE events SET assessed_by = ? WHERE id = ?")
+    .run(assessedBy, eventId);
+}
+
+export function setEventThinkingTrace(eventId: string, trace: string): void {
+  getDb()
+    .prepare("UPDATE events SET thinking_trace = ? WHERE id = ?")
+    .run(trace, eventId);
+}
+
 export function linkSignalToEvent(eventId: string, signalId: string): void {
   const database = getDb();
   database.prepare(`
@@ -273,6 +295,8 @@ function mapEvent(row: Record<string, unknown>): AssessedEvent {
     firstReported: row.first_reported as string,
     lastUpdated: row.last_updated as string,
     signalCount: row.signal_count as number,
+    assessedBy: ((row.assessed_by as string | undefined) ?? "local") as AssessedEvent["assessedBy"],
+    thinkingTrace: (row.thinking_trace as string | undefined) ?? undefined,
     signals: [],   // populated separately via getEventSignals
     conflicts: [], // populated by reasoning engine
   };
