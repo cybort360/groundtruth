@@ -237,93 +237,130 @@ function StatusDot({ status }: { status: AssessedEvent["status"] }) {
   );
 }
 
+// ── Trend badge colour ────────────────────────────────────────────────────────
+
+function trendClass(trend: string) {
+  if (/worse|worsening|rising|increasing/i.test(trend))
+    return "bg-rose-50 text-rose-700";
+  if (/better|improving|receding|decreasing|stable/i.test(trend))
+    return "bg-emerald-50 text-emerald-700";
+  return "bg-slate-100 text-slate-600";
+}
+
+// Trim trend text to keep the badge inline
+function shortTrend(trend: string): string {
+  // Strip parenthetical elaborations: "Getting worse (…)" → "Getting worse"
+  const stripped = trend.replace(/\s*\(.*?\)/, "").trim();
+  return stripped.length > 30 ? stripped.slice(0, 28) + "…" : stripped;
+}
+
 // ── Parsed reasoning renderer ─────────────────────────────────────────────────
 
 function ReasoningSection({ parsed }: { parsed: ParsedReasoning }) {
-  const hasSections =
-    parsed.evidenceFor.length > 0 ||
-    parsed.evidenceAgainst.length > 0 ||
-    parsed.resolution;
+  const [showDetails, setShowDetails] = useState(false);
 
-  // Fallback: render the intro text if nothing parsed out
-  if (!hasSections && parsed.intro) {
-    return (
-      <p className="text-xs text-slate-600 leading-relaxed">{parsed.intro}</p>
-    );
+  const hasFor     = parsed.evidenceFor.length > 0;
+  const hasAgainst = parsed.evidenceAgainst.length > 0;
+  const hasSections = hasFor || hasAgainst || !!parsed.resolution;
+
+  // No structured sections — fall back to intro text
+  if (!hasSections) {
+    if (!parsed.intro) return null;
+    return <p className="text-xs text-slate-600 leading-relaxed">{parsed.intro}</p>;
   }
 
   return (
-    <div className="space-y-3">
-      {/* Intro / summary line */}
-      {parsed.intro && (
-        <p className="text-xs text-slate-500 leading-relaxed">{parsed.intro}</p>
-      )}
-
-      {/* Evidence for */}
-      {parsed.evidenceFor.length > 0 && (
-        <div>
-          <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1.5">
-            Supporting
-          </p>
-          <ul className="space-y-1.5">
-            {parsed.evidenceFor.map((item, i) => (
-              <li key={i} className="flex items-start gap-2">
-                <span className="mt-0.5 text-emerald-500">
-                  <EvidenceIcon type={guessType(item)} />
-                </span>
-                <span className="text-xs text-slate-700 leading-relaxed">{item}</span>
-              </li>
-            ))}
-          </ul>
+    <div>
+      {/* ── Summary row (always visible) ── */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+          {hasFor && (
+            <span className="text-xs text-slate-600">
+              <span className="font-semibold text-emerald-600">{parsed.evidenceFor.length}</span>
+              {" "}supporting
+            </span>
+          )}
+          {hasAgainst && (
+            <>
+              {hasFor && <span className="text-slate-300 text-xs">·</span>}
+              <span className="text-xs text-slate-600">
+                <span className="font-semibold text-amber-600">{parsed.evidenceAgainst.length}</span>
+                {" "}contradicting
+              </span>
+            </>
+          )}
+          {parsed.trend && (
+            <>
+              <span className="text-slate-300 text-xs">·</span>
+              <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${trendClass(parsed.trend)}`}>
+                {shortTrend(parsed.trend)}
+              </span>
+            </>
+          )}
         </div>
-      )}
 
-      {/* Evidence against */}
-      {parsed.evidenceAgainst.length > 0 && (
-        <div>
-          <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1.5">
-            Contradicting
-          </p>
-          <ul className="space-y-1.5">
-            {parsed.evidenceAgainst.map((item, i) => (
-              <li key={i} className="flex items-start gap-2">
-                <span className="mt-0.5 text-amber-500">
-                  <EvidenceIcon type={guessType(item)} />
-                </span>
-                <span className="text-xs text-slate-700 leading-relaxed">{item}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+        <button
+          onClick={() => setShowDetails((v) => !v)}
+          className="flex items-center gap-0.5 text-[11px] font-semibold text-teal-600 hover:text-teal-700 flex-shrink-0 transition-colors"
+        >
+          {showDetails ? "Less" : "Details"}
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2.2}
+            strokeLinecap="round" strokeLinejoin="round"
+            className={`w-3 h-3 transition-transform duration-150 ${showDetails ? "rotate-180" : ""}`}>
+            <path d="M4 6l4 4 4-4" />
+          </svg>
+        </button>
+      </div>
 
-      {/* Resolution */}
-      {parsed.resolution && (
-        <div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-            Conclusion
-          </p>
-          <p className="text-xs text-slate-600 leading-relaxed">{parsed.resolution}</p>
-        </div>
-      )}
+      {/* ── Detail panel (expandable) ── */}
+      {showDetails && (
+        <div className="mt-3 pt-3 border-t border-slate-100 space-y-3 animate-expand">
 
-      {/* Trend badge */}
-      {parsed.trend && (
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            Trend
-          </span>
-          <span
-            className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-              /worse|worsening|rising|increasing/i.test(parsed.trend)
-                ? "bg-rose-50 text-rose-700"
-                : /better|improving|receding|decreasing|stable/i.test(parsed.trend)
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-slate-100 text-slate-600"
-            }`}
-          >
-            {parsed.trend}
-          </span>
+          {hasFor && (
+            <div>
+              <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-1.5">
+                Supporting
+              </p>
+              <ul className="space-y-1.5">
+                {parsed.evidenceFor.map((item, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="mt-0.5 text-emerald-500">
+                      <EvidenceIcon type={guessType(item)} />
+                    </span>
+                    <span className="text-xs text-slate-700 leading-relaxed">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {hasAgainst && (
+            <div>
+              <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-1.5">
+                Contradicting
+              </p>
+              <ul className="space-y-1.5">
+                {parsed.evidenceAgainst.map((item, i) => (
+                  <li key={i} className="flex items-start gap-2">
+                    <span className="mt-0.5 text-amber-500">
+                      <EvidenceIcon type={guessType(item)} />
+                    </span>
+                    <span className="text-xs text-slate-700 leading-relaxed">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {parsed.resolution && (
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                Conclusion
+              </p>
+              <p className="text-xs text-slate-600 leading-relaxed">{parsed.resolution}</p>
+            </div>
+          )}
+
         </div>
       )}
     </div>
