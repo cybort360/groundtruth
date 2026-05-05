@@ -19,7 +19,7 @@ interface SubmitResult {
 }
 
 interface LocationState {
-  status: "acquiring" | "acquired" | "failed";
+  status: "idle" | "acquiring" | "acquired" | "failed";
   latitude?: number;
   longitude?: number;
   placeName?: string | null;
@@ -77,10 +77,8 @@ export default function ReportForm() {
   // Text state
   const [textContent, setTextContent] = useState("");
 
-  // Location state
-  const [location, setLocation] = useState<LocationState>({
-    status: "acquiring",
-  });
+  // Location state — starts idle; GPS only requested when user explicitly asks
+  const [location, setLocation] = useState<LocationState>({ status: "idle" });
 
   // Location map picker
   const [showPicker, setShowPicker] = useState(false);
@@ -90,12 +88,13 @@ export default function ReportForm() {
   const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Acquire geolocation on mount
-  useEffect(() => {
+  // Called only when the user explicitly taps "Use my location"
+  const requestLocation = useCallback(() => {
     if (!navigator.geolocation) {
       setLocation({ status: "failed" });
       return;
     }
+    setLocation({ status: "acquiring" });
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setLocation({
@@ -104,13 +103,8 @@ export default function ReportForm() {
           longitude: pos.coords.longitude,
         });
       },
-      () => {
-        // GPS failed — open the map picker immediately so the user
-        // doesn't hit a dead end
-        setLocation({ status: "failed" });
-        setShowPicker(true);
-      },
-      { timeout: 10000 }
+      () => setLocation({ status: "failed" }),
+      { timeout: 10000, enableHighAccuracy: true }
     );
   }, []);
 
@@ -593,6 +587,34 @@ export default function ReportForm() {
           )}
         </div>
 
+        {/* Idle — ask the user before touching geolocation */}
+        {location.status === "idle" && !showPicker && (
+          <div className="flex gap-2">
+            <button
+              onClick={requestLocation}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-teal-200 bg-teal-50 hover:bg-teal-100 transition-colors text-sm font-semibold text-teal-700"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 flex-shrink-0">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
+              </svg>
+              Use my location
+            </button>
+            <button
+              onClick={() => setShowPicker(true)}
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors text-sm font-semibold text-slate-600"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 flex-shrink-0">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                <circle cx="12" cy="10" r="3" />
+              </svg>
+              Pick on map
+            </button>
+          </div>
+        )}
+
         {/* Acquiring GPS */}
         {location.status === "acquiring" && (
           <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-200">
@@ -648,23 +670,13 @@ export default function ReportForm() {
           </button>
         )}
 
-        {/* Retry GPS (always shown when status is failed and picker is closed) */}
+        {/* Retry GPS after failure */}
         {location.status === "failed" && !showPicker && (
           <button
-            onClick={() => {
-              setLocation({ status: "acquiring" });
-              navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                  setLocation({ status: "acquired", latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-                  setShowPicker(false);
-                },
-                () => setLocation({ status: "failed" }),
-                { timeout: 10000 }
-              );
-            }}
+            onClick={requestLocation}
             className="mt-2 text-xs font-medium text-slate-500 hover:text-teal-600 transition-colors"
           >
-            ↺ Retry GPS
+            ↺ Try again
           </button>
         )}
 

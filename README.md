@@ -7,6 +7,39 @@
 
 ---
 
+## Quick Start
+
+**Prerequisites:** Node.js 20+, [Ollama](https://ollama.com) installed.
+
+```bash
+# 1 — Pull the model
+ollama pull gemma4:e4b
+
+# 2 — Clone and install
+git clone https://github.com/cybort360/groundtruth
+cd groundtruth
+npm install
+
+# 3 — Configure environment
+cp .env.example .env.local
+# No edits needed for local Ollama — the app auto-detects it on localhost:11434
+
+# 4 — Start the dev server
+npm run dev
+```
+
+Open **[http://localhost:3000](http://localhost:3000)**.
+
+The app seeds demo data automatically on first load — events appear on the map immediately. To reset or re-seed the Lagos flooding scenario manually:
+
+```bash
+npm run db:seed
+```
+
+**No GPU? No problem.** Open Settings (gear icon, top-right) and paste a [Google AI Studio](https://aistudio.google.com) API key. The app switches to Gemma via the Google AI API with no local model required.
+
+---
+
 ## The Problem
 
 When flooding hits, social media fills with contradictory reports. One person says the road is passable. Another says cars are submerged. Emergency responders and residents have no way to know who's right, so they either freeze or take dangerous guesses.
@@ -289,4 +322,6 @@ src/
 
 ## License
 
-MIT
+[Creative Commons Attribution 4.0 International (CC BY 4.0)](LICENSE)
+
+You are free to share and adapt this work for any purpose, including commercially, as long as you give appropriate credit.
