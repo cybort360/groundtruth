@@ -228,6 +228,17 @@ export function setEventThinkingTrace(eventId: string, trace: string): void {
     .run(trace, eventId);
 }
 
+/** Count signals not yet linked to any event — the "unanalyzed" queue depth. */
+export function getUnlinkedSignalCount(): number {
+  const row = getDb()
+    .prepare(`
+      SELECT COUNT(*) as count FROM signals
+      WHERE id NOT IN (SELECT DISTINCT signal_id FROM event_signals)
+    `)
+    .get() as { count: number };
+  return row.count;
+}
+
 export function linkSignalToEvent(eventId: string, signalId: string): void {
   const database = getDb();
   database.prepare(`

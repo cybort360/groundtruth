@@ -259,6 +259,13 @@ export default function ReportForm() {
 
       const data = (await res.json()) as SubmitResult;
       setSubmitResult(data);
+
+      // Fire reasoning engine in the background — don't await so the
+      // confirmation screen appears immediately. The dashboard will pick
+      // up the new event on its next 30-second poll (or manual Analyze).
+      void fetch("/api/reasoning", { method: "POST" }).catch(() => {
+        // Reasoning failure is non-fatal — the signal is already persisted
+      });
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Submission failed. Please try again.");
     } finally {
@@ -338,9 +345,13 @@ export default function ReportForm() {
               </span>
             </div>
           </div>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            This report has been added to the local evidence pool. The reasoning engine will incorporate it into the next assessment.
-          </p>
+          <div className="flex items-center gap-2 text-xs text-teal-600 bg-teal-50 border border-teal-100 rounded-xl px-3.5 py-2.5 w-full">
+            <svg className="animate-spin h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span className="font-medium">Gemma is analyzing your report in the background.</span>
+          </div>
           <div className="flex gap-3 w-full">
             <button
               onClick={resetForm}

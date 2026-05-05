@@ -55,13 +55,28 @@ function parseReasoning(raw: string): ParsedReasoning {
   }
 
   // Split evidence section into individual items.
-  // AI-generated format uses "; " as separator; seed data uses ", ".
-  // We try semicolons first, then fall back to the whole string as one item.
+  // Handles three formats produced by different sources:
+  //   1. "; " separated  — AI-generated reasoning chains
+  //   2. ". Signal X"    — seeded demo data format
+  //   3. Single item     — fallback
   function splitItems(text: string | null): string[] {
     if (!text) return [];
     const trimmed = text.replace(/\.\s*$/, "").trim();
+
+    // Try semicolons first (most common AI output)
     const bySemicolon = trimmed.split(/;\s+/).map((s) => s.trim()).filter(Boolean);
     if (bySemicolon.length > 1) return bySemicolon;
+
+    // Try splitting on ". Signal " — matches seed data like
+    // "Signal E (photo…). Signal G (sensor…). Signal C (voice…)"
+    const bySignalKeyword = trimmed.split(/\.\s+(?=Signal\s+\w)/i).map((s) => s.trim()).filter(Boolean);
+    if (bySignalKeyword.length > 1) return bySignalKeyword;
+
+    // Try splitting on ". " before a capital letter + parenthesis — catches
+    // other structured formats without a "Signal" keyword
+    const byCapSentence = trimmed.split(/\.\s+(?=[A-Z][^.]{5,}\()/).map((s) => s.trim()).filter(Boolean);
+    if (byCapSentence.length > 1) return byCapSentence;
+
     return [trimmed];
   }
 

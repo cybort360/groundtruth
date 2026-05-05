@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getActiveEvents, getEventSignals } from "@/lib/db";
+import { getActiveEvents, getEventSignals, getUnlinkedSignalCount } from "@/lib/db";
 import { seedFallbackData } from "@/lib/demo-seed";
 import type { NormalizedSignal, ConflictPair } from "@/types";
 
@@ -41,6 +41,7 @@ export async function GET() {
     return NextResponse.json({
       events: enriched,
       lastUpdated: new Date().toISOString(),
+      unanalyzedCount: getUnlinkedSignalCount(),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

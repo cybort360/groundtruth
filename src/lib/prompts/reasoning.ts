@@ -78,8 +78,8 @@ Write the reasoning_chain argument to update_event in this format:
 
 "[TITLE] — [CONFIDENCE]%
 
-Evidence for: [signals supporting this, with evidence type and age]
-Evidence against: [any contradicting signals, with evidence type and age]
+Evidence for: [list each supporting signal separated by "; " — e.g. "photo (credibility 88%): waist-deep water; sensor (credibility 92%): 45cm depth"]
+Evidence against: [list each contradicting signal separated by "; " — e.g. "text (credibility 30%): road passable"]
 Resolution: [why you weighted the evidence the way you did]
 Trend: [getting worse / improving / stable based on signal timestamps]
 Recommendation: [specific, actionable guidance for someone on the ground]"
