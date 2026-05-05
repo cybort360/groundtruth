@@ -17,6 +17,25 @@ function getRelativeTime(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+function getClockTime(iso: string): string {
+  const d = new Date(iso);
+  // If the date is today, show just HH:MM; otherwise show "May 5, 14:30"
+  const now = new Date();
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  if (sameDay) {
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+  return d.toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 // Replace ISO 8601 timestamps embedded in reasoning text with "HH:MM" local time
 function localizeTimestamps(text: string): string {
   return text.replace(
@@ -663,8 +682,8 @@ export default function EventCard({ event, isUpdating }: { event: AssessedEvent;
           </div>
 
           {/* First reported (update time already shown on the compact row) */}
-          <p className="text-[11px] text-slate-400 px-0.5">
-            First reported {getRelativeTime(event.firstReported)}
+          <p className="text-[11px] text-slate-400 px-0.5" title={new Date(event.firstReported).toLocaleString()}>
+            First reported {getClockTime(event.firstReported)} ({getRelativeTime(event.firstReported)})
           </p>
 
           {/* Conflicts */}
@@ -710,8 +729,14 @@ export default function EventCard({ event, isUpdating }: { event: AssessedEvent;
                     >
                       {/* Time + credibility row */}
                       <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-semibold text-slate-600 tabular-nums">
-                          {getRelativeTime(signal.timestamp)}
+                        <span
+                          className="text-[11px] font-semibold text-slate-600 tabular-nums"
+                          title={new Date(signal.timestamp).toLocaleString()}
+                        >
+                          {getClockTime(signal.timestamp)}
+                        </span>
+                        <span className="text-slate-300 text-[10px] tabular-nums">
+                          ({getRelativeTime(signal.timestamp)})
                         </span>
                         <span className="text-slate-300 text-xs" aria-hidden="true">·</span>
                         <span className="text-slate-400 text-[11px] capitalize">

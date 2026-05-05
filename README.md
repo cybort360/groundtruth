@@ -46,7 +46,7 @@ ollama pull gemma4:e4b
 
 **Option C — No AI key at all**
 
-The app still loads and shows all demo events, reasoning traces, the map, and the full UI. The only thing that won't work is pressing **Analyze** to run fresh reasoning on new reports.
+The app loads, the Lagos demo seeds automatically, the map works, all event cards show with their confidence scores, conflict views, and pre-computed Gemma 4 thinking traces. You can submit reports and browse everything. The only thing that won't work is pressing **Analyze** — that button needs a live AI backend to run fresh reasoning on new reports.
 
 ---
 
