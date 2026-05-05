@@ -5,6 +5,7 @@ import EventCard from "@/components/EventCard";
 import MapViewLoader from "@/components/MapViewLoader";
 import ActionAdvisor from "@/components/ActionAdvisor";
 import MeshStatus from "@/components/MeshStatus";
+import { EventTypeIcon, IncidentIcon, CheckCircleIcon, SearchIcon } from "@/components/icons";
 import { useOffline } from "@/lib/use-offline";
 import type { AssessedEvent } from "@/types";
 
@@ -40,19 +41,19 @@ function SkeletonCard() {
 // ── Filter pills ──────────────────────────────────────────────────────────────
 
 const ALL_EVENT_TYPES = [
-  { value: "flooding",          icon: "🌊", label: "Flooding" },
-  { value: "earthquake",        icon: "🏚️", label: "Earthquake" },
-  { value: "wildfire",          icon: "🔥", label: "Wildfire" },
-  { value: "landslide",         icon: "⛰️", label: "Landslide" },
-  { value: "tsunami",           icon: "🌊", label: "Tsunami" },
-  { value: "tropical_storm",    icon: "🌀", label: "Storm" },
-  { value: "road_closure",      icon: "🚧", label: "Road" },
-  { value: "power_outage",      icon: "⚡", label: "Power" },
-  { value: "structural_damage", icon: "🏗️", label: "Structure" },
-  { value: "gas_leak",          icon: "💨", label: "Gas Leak" },
-  { value: "avalanche",         icon: "🏔️", label: "Avalanche" },
-  { value: "volcanic_activity", icon: "🌋", label: "Volcano" },
-  { value: "other",             icon: "⚠️", label: "Other" },
+  { value: "flooding",          label: "Flooding" },
+  { value: "earthquake",        label: "Earthquake" },
+  { value: "wildfire",          label: "Wildfire" },
+  { value: "landslide",         label: "Landslide" },
+  { value: "tsunami",           label: "Tsunami" },
+  { value: "tropical_storm",    label: "Storm" },
+  { value: "road_closure",      label: "Road" },
+  { value: "power_outage",      label: "Power" },
+  { value: "structural_damage", label: "Structure" },
+  { value: "gas_leak",          label: "Gas Leak" },
+  { value: "avalanche",         label: "Avalanche" },
+  { value: "volcanic_activity", label: "Volcano" },
+  { value: "other",             label: "Other" },
 ] as const;
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -233,7 +234,7 @@ export default function DashboardPage() {
               </button>
 
               {/* All 13 type pills — types with events are vivid, empty ones fade back */}
-              {ALL_EVENT_TYPES.map(({ value, icon, label }) => {
+              {ALL_EVENT_TYPES.map(({ value, label }) => {
                 const count = typeCounts[value] ?? 0;
                 const active = filterType === value;
                 const hasData = count > 0;
@@ -251,7 +252,9 @@ export default function DashboardPage() {
                           : "bg-white text-slate-400 border border-slate-100 hover:border-slate-300 opacity-60"}
                     `}
                   >
-                    <span>{icon}</span>
+                    <span className={active ? "text-teal-200" : hasData ? "text-slate-500" : "text-slate-300"}>
+                      <EventTypeIcon type={value} className="w-3.5 h-3.5" />
+                    </span>
                     <span>{label}</span>
                     {hasData && (
                       <span className={active ? "text-teal-200" : "text-slate-400"}>
@@ -335,7 +338,7 @@ export default function DashboardPage() {
           if (visibleEvents.length === 0 && events.length > 0) return null; // filtered out — don't show banner
           if (critical.length > 0) return (
             <div className="mt-3 flex items-center gap-2.5 bg-rose-50 border border-rose-200 rounded-2xl px-4 py-3">
-              <span className="text-base flex-shrink-0">🔴</span>
+              <span className="flex-shrink-0 w-3.5 h-3.5 rounded-full bg-rose-500" aria-hidden="true" />
               <div>
                 <p className="text-sm font-semibold text-rose-800">
                   {critical.length === 1 ? "Critical situation confirmed" : `${critical.length} critical situations confirmed`}
@@ -346,7 +349,7 @@ export default function DashboardPage() {
           );
           if (moderate.length > 0) return (
             <div className="mt-3 flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
-              <span className="text-base flex-shrink-0">⚠️</span>
+              <span className="flex-shrink-0 text-amber-500"><IncidentIcon className="w-4 h-4" /></span>
               <div>
                 <p className="text-sm font-semibold text-amber-800">Situation under assessment</p>
                 <p className="text-xs text-amber-700 mt-0.5">Reports are coming in. Confidence is still building — exercise caution.</p>
@@ -355,7 +358,7 @@ export default function DashboardPage() {
           );
           if (events.length > 0) return (
             <div className="mt-3 flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3">
-              <span className="text-base flex-shrink-0">✅</span>
+              <span className="flex-shrink-0 text-emerald-500"><CheckCircleIcon className="w-4 h-4" /></span>
               <div>
                 <p className="text-sm font-semibold text-emerald-800">No critical threats detected</p>
                 <p className="text-xs text-emerald-700 mt-0.5">Monitored events show low severity. Stay alert and keep reporting.</p>
@@ -401,14 +404,14 @@ export default function DashboardPage() {
             events.length > 0 ? (
               // Events exist but filtered out
               <div className="bg-white rounded-2xl border border-slate-200 p-8 flex flex-col items-center text-center">
-                <span className="text-2xl mb-2">🔍</span>
+                <span className="text-slate-300 mb-2"><SearchIcon className="w-8 h-8" /></span>
                 <p className="text-sm font-semibold text-slate-700 mb-1">No matches for this filter</p>
                 <p className="text-xs text-slate-400">Try "Any" confidence or a different event type.</p>
               </div>
             ) : (
               // No events at all — show mission statement
               <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-                <div className="bg-teal-700 px-6 pt-8 pb-6 text-center">
+                <div className="bg-teal-700 px-6 pt-8 pb-6 text-center" >
                   <svg viewBox="0 0 40 40" fill="none" className="w-12 h-12 mx-auto mb-3" aria-hidden="true">
                     <circle cx="20" cy="27" r="3" fill="white" />
                     <path d="M13 21.5 a9 9 0 0 1 14 0" stroke="white" strokeWidth="2.5" strokeLinecap="round" />

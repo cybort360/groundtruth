@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { AssessedEvent, NormalizedSignal } from "@/types";
 import ConflictView from "./ConflictView";
+import { EventTypeIcon, EvidenceIcon } from "./icons";
 
 // ── Time helpers ──────────────────────────────────────────────────────────────
 
@@ -99,49 +100,6 @@ function parseReasoning(raw: string): ParsedReasoning {
   };
 }
 
-// ── Evidence type icon (SVG) ──────────────────────────────────────────────────
-
-function EvidenceIcon({
-  type,
-  className = "w-3.5 h-3.5",
-}: {
-  type: NormalizedSignal["evidenceType"];
-  className?: string;
-}) {
-  const base = `${className} flex-shrink-0`;
-  if (type === "photo")
-    return (
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor"
-        strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={base}>
-        <path d="M2 7.5A1.5 1.5 0 0 1 3.5 6h.879a1.5 1.5 0 0 0 1.06-.44l.883-.883A1.5 1.5 0 0 1 7.38 4h5.243a1.5 1.5 0 0 1 1.06.44l.883.883A1.5 1.5 0 0 0 15.62 6H16.5A1.5 1.5 0 0 1 18 7.5v8A1.5 1.5 0 0 1 16.5 17h-13A1.5 1.5 0 0 1 2 15.5v-8z" />
-        <circle cx="10" cy="11" r="2.5" />
-      </svg>
-    );
-  if (type === "audio")
-    return (
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor"
-        strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={base}>
-        <rect x="7" y="2" width="6" height="9" rx="3" />
-        <path d="M4 10a6 6 0 0 0 12 0M10 16v2M7 18h6" />
-      </svg>
-    );
-  if (type === "sensor")
-    return (
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor"
-        strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={base}>
-        <path d="M3.5 6.5a9 9 0 0 0 0 7M6 8.5a5 5 0 0 0 0 3M16.5 6.5a9 9 0 0 1 0 7M14 8.5a5 5 0 0 1 0 3" />
-        <circle cx="10" cy="10" r="1.5" fill="currentColor" stroke="none" />
-      </svg>
-    );
-  // text
-  return (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor"
-      strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={base}>
-      <path d="M4 6h12M4 10h8M4 14h6" />
-    </svg>
-  );
-}
-
 // Guess evidence type from free-text (for parsed reasoning items)
 function guessType(item: string): NormalizedSignal["evidenceType"] {
   if (/sensor/i.test(item)) return "sensor";
@@ -150,26 +108,26 @@ function guessType(item: string): NormalizedSignal["evidenceType"] {
   return "text";
 }
 
-// ── Event type metadata ───────────────────────────────────────────────────────
+// ── Event type label ──────────────────────────────────────────────────────────
 
-const EVENT_TYPE_META: Record<string, { icon: string; label: string }> = {
-  flooding:          { icon: "🌊", label: "Flooding" },
-  earthquake:        { icon: "🏚️", label: "Earthquake" },
-  wildfire:          { icon: "🔥", label: "Wildfire" },
-  landslide:         { icon: "⛰️", label: "Landslide" },
-  tsunami:           { icon: "🌊", label: "Tsunami" },
-  tropical_storm:    { icon: "🌀", label: "Tropical Storm" },
-  road_closure:      { icon: "🚧", label: "Road Closure" },
-  power_outage:      { icon: "⚡", label: "Power Outage" },
-  structural_damage: { icon: "🏗️", label: "Structural Damage" },
-  gas_leak:          { icon: "💨", label: "Gas Leak" },
-  avalanche:         { icon: "🏔️", label: "Avalanche" },
-  volcanic_activity: { icon: "🌋", label: "Volcanic Activity" },
-  other:             { icon: "⚠️", label: "Incident" },
+const EVENT_TYPE_LABEL: Record<string, string> = {
+  flooding:          "Flooding",
+  earthquake:        "Earthquake",
+  wildfire:          "Wildfire",
+  landslide:         "Landslide",
+  tsunami:           "Tsunami",
+  tropical_storm:    "Tropical Storm",
+  road_closure:      "Road Closure",
+  power_outage:      "Power Outage",
+  structural_damage: "Structural Damage",
+  gas_leak:          "Gas Leak",
+  avalanche:         "Avalanche",
+  volcanic_activity: "Volcanic Activity",
+  other:             "Incident",
 };
 
-function getMeta(type: string) {
-  return EVENT_TYPE_META[type] ?? EVENT_TYPE_META.other;
+function getLabel(type: string): string {
+  return EVENT_TYPE_LABEL[type] ?? "Incident";
 }
 
 // ── Confidence ring ───────────────────────────────────────────────────────────
@@ -374,7 +332,7 @@ export default function EventCard({ event }: { event: AssessedEvent }) {
   const [showSignals, setShowSignals]     = useState(false);
   const [showConflicts, setShowConflicts] = useState(false);
 
-  const meta        = getMeta(event.eventType);
+  const label       = getLabel(event.eventType);
   const signalCount = event.signals?.length ?? event.signalCount;
   const parsed      = parseReasoning(event.reasoningChain);
 
@@ -387,8 +345,8 @@ export default function EventCard({ event }: { event: AssessedEvent }) {
         className="w-full text-left px-4 py-3.5 flex items-center gap-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-inset"
         aria-expanded={expanded}
       >
-        <span className="text-xl leading-none flex-shrink-0 w-7 text-center" aria-hidden="true">
-          {meta.icon}
+        <span className="flex-shrink-0 w-7 flex items-center justify-center text-slate-500" aria-hidden="true">
+          <EventTypeIcon type={event.eventType} className="w-5 h-5" />
         </span>
 
         <div className="flex-1 min-w-0">
@@ -398,7 +356,7 @@ export default function EventCard({ event }: { event: AssessedEvent }) {
           <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-500 flex-wrap">
             <StatusDot status={event.status} />
             <span aria-hidden="true">·</span>
-            <span>{meta.label}</span>
+            <span>{label}</span>
             <span aria-hidden="true">·</span>
             <span>{signalCount} report{signalCount !== 1 ? "s" : ""}</span>
             <span aria-hidden="true">·</span>
