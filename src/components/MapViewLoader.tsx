@@ -14,6 +14,7 @@ const MapViewDynamic = dynamic(() => import("./MapView"), {
 interface MapViewLoaderProps {
   events: AssessedEvent[];
   onEventClick?: (eventId: string) => void;
+  centerOverride?: [number, number] | null;
 }
 
 export default function MapViewLoader(props: MapViewLoaderProps) {

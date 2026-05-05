@@ -89,6 +89,12 @@ export default function DashboardPage() {
   const [lowBandwidth, setLowBandwidth]         = useState(false);
   const [showOverflow, setShowOverflow]         = useState(false);
   const [timeframeDays, setTimeframeDays]       = useState<1 | 3 | 7>(7);
+  // Search
+  const [searchQuery, setSearchQuery]           = useState("");
+  const [mapCenter, setMapCenter]               = useState<[number, number] | null>(null);
+  const [locationLabel, setLocationLabel]       = useState<string | null>(null);
+  const [locationSearching, setLocationSearching] = useState(false);
+  const [locationError, setLocationError]       = useState<string | null>(null);
   const { isOffline, ollamaReachable }          = useOffline();
   const intervalRef                             = useRef<ReturnType<typeof setInterval> | null>(null);
   // Track previous confidence per event ID to detect changes between polls.
@@ -157,6 +163,40 @@ export default function DashboardPage() {
     }
   }, [fetchEvents]);
 
+  const searchLocation = useCallback(async () => {
+    const q = searchQuery.trim();
+    if (!q) return;
+    setLocationSearching(true);
+    setLocationError(null);
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1`;
+      const res = await fetch(url, { headers: { "Accept-Language": "en" } });
+      if (!res.ok) throw new Error("Geocoding request failed");
+      const data = (await res.json()) as Array<{ lat: string; lon: string; display_name: string }>;
+      if (data.length === 0) {
+        setLocationError(`No location found for "${q}"`);
+        return;
+      }
+      const { lat, lon, display_name } = data[0];
+      // Shorten the display name to city + country only
+      const parts = display_name.split(", ");
+      const shortLabel = parts.length > 2 ? `${parts[0]}, ${parts[parts.length - 1]}` : display_name;
+      setMapCenter([parseFloat(lat), parseFloat(lon)]);
+      setLocationLabel(shortLabel);
+    } catch {
+      setLocationError("Could not reach geocoding service. Check your connection.");
+    } finally {
+      setLocationSearching(false);
+    }
+  }, [searchQuery]);
+
+  const clearSearch = useCallback(() => {
+    setSearchQuery("");
+    setMapCenter(null);
+    setLocationLabel(null);
+    setLocationError(null);
+  }, []);
+
   useEffect(() => {
     void fetchEvents(false);
     intervalRef.current = setInterval(() => void fetchEvents(true), 30_000);
@@ -195,9 +235,15 @@ export default function DashboardPage() {
     return acc;
   }, {});
 
+  const q = searchQuery.trim().toLowerCase();
   const visibleEvents = timeframeEvents
     .filter((e) => filterType === "all" || e.eventType === filterType)
     .filter((e) => e.confidence * 100 >= minConfidence)
+    .filter((e) => !q ||
+      e.title.toLowerCase().includes(q) ||
+      e.eventType.toLowerCase().includes(q) ||
+      (e.description ?? "").toLowerCase().includes(q)
+    )
     .sort((a, b) =>
       sortOrder === "confidence"
         ? b.confidence - a.confidence
@@ -392,7 +438,7 @@ export default function DashboardPage() {
               className="rounded-2xl overflow-hidden border border-slate-100 transition-all duration-300 relative"
               style={{ height: mapExpanded ? 260 : 148, isolation: "isolate" }}
             >
-              <MapViewLoader events={visibleEvents} />
+              <MapViewLoader events={visibleEvents} centerOverride={mapCenter} />
               {/* Map legend — sits above Leaflet panes (z-index > 400) */}
               <div className="absolute bottom-2 left-2 z-[500] bg-white/90 backdrop-blur-sm rounded-xl px-2.5 py-2 shadow-sm border border-slate-100 pointer-events-none">
                 {[
@@ -423,6 +469,94 @@ export default function DashboardPage() {
             </button>
           </div>
         )}
+
+        {/* ── Search bar ── */}
+        <div className="mt-4">
+          <div className="flex items-center gap-2">
+            {/* Text input */}
+            <div className="relative flex-1">
+              <svg
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                strokeLinecap="round" strokeLinejoin="round"
+                className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"
+                aria-hidden="true"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => { setSearchQuery(e.target.value); setLocationError(null); }}
+                onKeyDown={(e) => { if (e.key === "Enter") void searchLocation(); }}
+                placeholder="Search events or type a location…"
+                className="w-full pl-9 pr-8 py-2.5 text-sm rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent placeholder-slate-400"
+              />
+              {searchQuery && (
+                <button
+                  onClick={clearSearch}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  aria-label="Clear search"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+                    strokeLinecap="round" className="w-3.5 h-3.5">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Jump to location on map */}
+            <button
+              onClick={() => void searchLocation()}
+              disabled={locationSearching || !searchQuery.trim()}
+              title="Jump to this location on the map"
+              className="flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold rounded-xl bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+            >
+              {locationSearching ? (
+                <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                  strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden="true">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+              )}
+              <span>Go</span>
+            </button>
+          </div>
+
+          {/* Active location chip */}
+          {locationLabel && (
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] text-slate-400 font-medium">Map showing:</span>
+              <div className="flex items-center gap-1.5 bg-teal-50 border border-teal-200 rounded-full px-2.5 py-1">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 text-teal-500 flex-shrink-0" aria-hidden="true">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                </svg>
+                <span className="text-xs font-semibold text-teal-700">{locationLabel}</span>
+                <button
+                  onClick={() => { setMapCenter(null); setLocationLabel(null); }}
+                  className="text-teal-400 hover:text-teal-600 transition-colors ml-0.5"
+                  aria-label="Clear location"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+                    strokeLinecap="round" className="w-3 h-3">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Geocoding error */}
+          {locationError && (
+            <p className="mt-1.5 text-xs text-rose-500 font-medium">{locationError}</p>
+          )}
+        </div>
 
         {/* ── Type pills + unified Filter button ── */}
         <div className="mt-4 flex items-center gap-2">

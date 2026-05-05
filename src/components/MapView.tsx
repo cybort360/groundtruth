@@ -98,6 +98,16 @@ function FitBounds({ events }: { events: AssessedEvent[] }) {
   return null;
 }
 
+// ── FlyTo — animates to a geocoded location ───────────────────────────────────
+
+function FlyTo({ lat, lng }: { lat: number; lng: number }) {
+  const map = useMap();
+  useEffect(() => {
+    map.flyTo([lat, lng], 13, { duration: 1.2 });
+  }, [map, lat, lng]);
+  return null;
+}
+
 // ── Popup HTML builder ────────────────────────────────────────────────────────
 
 function buildPopupHtml(event: AssessedEvent, onEventClick?: (id: string) => void): string {
@@ -161,9 +171,10 @@ const TILE_URL = OFFLINE_TILES
 interface MapViewProps {
   events: AssessedEvent[];
   onEventClick?: (eventId: string) => void;
+  centerOverride?: [number, number] | null;
 }
 
-export default function MapView({ events, onEventClick }: MapViewProps) {
+export default function MapView({ events, onEventClick, centerOverride }: MapViewProps) {
   const defaultCenter: [number, number] = [6.4400, 3.4700];
 
   return (
@@ -178,7 +189,11 @@ export default function MapView({ events, onEventClick }: MapViewProps) {
         {...(OFFLINE_TILES ? { crossOrigin: false } : {})}
       />
 
-      <FitBounds events={events} />
+      {/* Use FlyTo when the user has searched a location; otherwise auto-fit events */}
+      {centerOverride
+        ? <FlyTo lat={centerOverride[0]} lng={centerOverride[1]} />
+        : <FitBounds events={events} />
+      }
 
       {/*
         Two-ring zones per event:
