@@ -208,6 +208,33 @@ export function upsertEvent(event: Partial<AssessedEvent> & { id: string }): voi
   }
 }
 
+/**
+ * Find an existing active/uncertain event of the same type within ~500 m of
+ * the given coordinates. Used by update_event to avoid creating duplicates on
+ * repeated reasoning runs.
+ *
+ * 0.005 degrees ≈ 550 m at the equator — tight enough to match the same
+ * incident without accidentally merging distinct nearby events.
+ */
+export function findNearbyActiveEvent(
+  lat: number,
+  lng: number,
+  eventType: string,
+): string | null {
+  const row = getDb()
+    .prepare(`
+      SELECT id FROM events
+      WHERE event_type = ?
+        AND status IN ('active', 'uncertain')
+        AND ABS(latitude  - ?) < 0.005
+        AND ABS(longitude - ?) < 0.005
+      ORDER BY last_updated DESC
+      LIMIT 1
+    `)
+    .get(eventType, lat, lng) as { id: string } | undefined;
+  return row?.id ?? null;
+}
+
 export function getActiveEvents(): AssessedEvent[] {
   const database = getDb();
   const rows = database.prepare(`
