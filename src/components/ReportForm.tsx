@@ -312,11 +312,31 @@ export default function ReportForm() {
               <p className="text-sm text-slate-700 leading-relaxed italic">&ldquo;{submitResult.signal.claim}&rdquo;</p>
             </div>
           )}
-          <div className="flex items-center justify-between w-full bg-teal-50 border border-teal-100 rounded-xl px-4 py-2.5">
-            <span className="text-xs font-medium text-teal-700">Credibility score</span>
-            <span className="text-sm font-bold text-teal-700">
-              {Math.round(submitResult.signal.credibilityScore * 100)}%
-            </span>
+          <div className="flex gap-2 w-full">
+            <div className="flex-1 flex items-center justify-between bg-teal-50 border border-teal-100 rounded-xl px-3.5 py-2.5">
+              <span className="text-xs font-medium text-teal-700">Credibility</span>
+              <span className="text-sm font-bold text-teal-700">
+                {Math.round(submitResult.signal.credibilityScore * 100)}%
+              </span>
+            </div>
+            <div className={`flex-1 flex items-center justify-between rounded-xl px-3.5 py-2.5 border ${
+              submitResult.signal.severity >= 4 ? "bg-rose-50 border-rose-100" :
+              submitResult.signal.severity === 3 ? "bg-amber-50 border-amber-100" :
+              "bg-slate-50 border-slate-100"
+            }`}>
+              <span className={`text-xs font-medium ${
+                submitResult.signal.severity >= 4 ? "text-rose-700" :
+                submitResult.signal.severity === 3 ? "text-amber-700" :
+                "text-slate-600"
+              }`}>Severity</span>
+              <span className={`text-sm font-bold ${
+                submitResult.signal.severity >= 4 ? "text-rose-700" :
+                submitResult.signal.severity === 3 ? "text-amber-700" :
+                "text-slate-700"
+              }`}>
+                {submitResult.signal.severity}/5
+              </span>
+            </div>
           </div>
           <p className="text-xs text-slate-400 leading-relaxed">
             This report has been added to the local evidence pool. The reasoning engine will incorporate it into the next assessment.

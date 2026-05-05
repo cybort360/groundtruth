@@ -159,8 +159,8 @@ export default function ActionAdvisor({ events }: { events: AssessedEvent[] }) {
     (e) => e.status === "resolved" || (e.status === "active" && e.confidence < 0.4)
   );
 
-  const activeCount = events.filter((e) => e.status === "active").length;
-  const allClear = avoidList.length === 0 && cautionList.length === 0;
+  const advisoryCount = avoidList.length + cautionList.length;
+  const allClear = advisoryCount === 0;
 
   // Summary text for collapsed state
   const summary =
@@ -168,7 +168,7 @@ export default function ActionAdvisor({ events }: { events: AssessedEvent[] }) {
       ? `${avoidList.length} area${avoidList.length !== 1 ? "s" : ""} to avoid`
       : allClear && clearList.length > 0
       ? "All areas appear clear"
-      : activeCount === 0
+      : advisoryCount === 0
       ? "No active events"
       : "Monitoring…";
 
@@ -200,7 +200,9 @@ export default function ActionAdvisor({ events }: { events: AssessedEvent[] }) {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-400">{activeCount} active</span>
+          <span className="text-xs text-slate-400">
+            {advisoryCount > 0 ? `${advisoryCount} advisor${advisoryCount !== 1 ? "ies" : "y"}` : "All clear"}
+          </span>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
             className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
             <polyline points="6 9 12 15 18 9" />
