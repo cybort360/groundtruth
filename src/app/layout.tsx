@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
+import { seedFallbackData } from "@/lib/demo-seed";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -40,6 +41,12 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Seed demo data on every server-side render.
+  // Runs in the Next.js server component context (request time, not build time),
+  // so the DB is populated before the client makes its first API call.
+  // isAlreadySeeded() makes this a no-op on warm instances.
+  try { seedFallbackData(); } catch { /* DB unavailable during static analysis — skip */ }
+
   return (
     <html lang="en">
       <head>
