@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import LocationPickerLoader from "./LocationPickerLoader";
+import QRShare, { type QRPayload } from "./QRShare";
 
 type ReportMode = "photo" | "voice" | "text";
 
@@ -87,6 +88,8 @@ export default function ReportForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [showQR, setShowQR] = useState(false);
+  const [qrPayload, setQrPayload] = useState<QRPayload | null>(null);
 
   // Called only when the user explicitly taps "Use my location"
   const requestLocation = useCallback(() => {
@@ -254,6 +257,16 @@ export default function ReportForm() {
       const data = (await res.json()) as SubmitResult;
       setSubmitResult(data);
 
+      // Build QR payload for offline sharing — coords already resolved above
+      setQrPayload({
+        v: 1,
+        type: mode,
+        lat: coords.latitude,
+        lng: coords.longitude,
+        ts: Date.now(),
+        content: mode === "text" ? textContent.trim() : (data.signal.claim ?? undefined),
+      });
+
       // Fire reasoning engine in the background — don't await so the
       // confirmation screen appears immediately. The dashboard will pick
       // up the new event on its next 30-second poll (or manual Analyze).
@@ -285,6 +298,7 @@ export default function ReportForm() {
 
   if (submitResult) {
     return (
+      <>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 w-full">
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="flex items-center justify-center w-14 h-14 rounded-full bg-teal-50 border border-teal-100">
@@ -346,6 +360,23 @@ export default function ReportForm() {
             </svg>
             <span className="font-medium">Gemma is analyzing your report in the background.</span>
           </div>
+          {/* Share via QR — only shown if we have coords */}
+          {qrPayload && (
+            <button
+              onClick={() => setShowQR(true)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}
+                strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <path d="M14 14h2v2h-2z" /><path d="M18 14h3" /><path d="M14 18v3" /><path d="M20 18v3" /><path d="M18 20h3" />
+              </svg>
+              Share via QR
+            </button>
+          )}
+
           <div className="flex gap-3 w-full">
             <button
               onClick={resetForm}
@@ -362,6 +393,12 @@ export default function ReportForm() {
           </div>
         </div>
       </div>
+
+      {/* QR share modal */}
+      {showQR && qrPayload && (
+        <QRShare payload={qrPayload} onClose={() => setShowQR(false)} />
+      )}
+      </>
     );
   }
 

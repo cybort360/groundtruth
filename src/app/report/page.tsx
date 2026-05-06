@@ -1,6 +1,9 @@
 import ReportForm from "@/components/ReportForm";
 import EmergencyPanel from "@/components/EmergencyPanel";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+
+const QRScanner = dynamic(() => import("@/components/QRScanner"), { ssr: false });
 
 export default function ReportPage() {
   return (
@@ -29,6 +32,11 @@ export default function ReportPage() {
 
       <div className="max-w-2xl mx-auto px-4 py-5 pb-10">
         <EmergencyPanel />
+
+        {/* QR scanner — import a report from another device */}
+        <div className="mt-6">
+          <QRScanner />
+        </div>
 
         {/* Divider */}
         <div className="mt-6 relative">

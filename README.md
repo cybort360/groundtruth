@@ -242,9 +242,9 @@ This populates the database with the Lagos flooding scenario. If Ollama is runni
 
 ## LAN Mesh Networking
 
-When the internet is down, every phone running GroundTruth on the same Wi-Fi network finds the others automatically and shares reports directly — no server, no cloud, no configuration required. (Technically: UDP broadcast on port 7042 for discovery, HTTP for report sync.)
+**Local server deployment (field teams):** Devices running `npm run dev` on the same Wi-Fi discover each other automatically via UDP broadcast and exchange reports directly — no server, no cloud. The MeshStatus component shows live peer count and sync log.
 
-No configuration required. Open the app on two devices on the same Wi-Fi and watch the Local Mesh panel connect within seconds. The MeshStatus component shows live peer count, bytes synced, and last sync time.
+**Vercel deployment (any device):** Reports can be shared offline via QR code. After submitting a report, tap "Share via QR" to display a scannable code. Another device running the app scans it and imports the report directly into its local database — no internet, no pairing. NFC tap sharing is available on Android Chrome.
 
 ---
 
@@ -336,7 +336,8 @@ src/
 - [x] Severity assessment — credibility-weighted signal scoring on a 5-level scale
 - [x] Emergency rescue panel — regional numbers, GPS SMS, dispatcher guidance
 - [x] Low-bandwidth mode — auto-detected, hides map, preserves core function on 2G
-- [x] LAN mesh networking — peer-to-peer report sync when internet is down
+- [x] LAN mesh networking — peer-to-peer report sync for local server deployments
+- [x] QR / NFC report sharing — offline report transfer between any devices
 - [x] PWA — installs on any device, UI works fully offline
 
 ---

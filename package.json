@@ -13,9 +13,12 @@
     "tiles:download": "tsx scripts/download-tiles.ts"
   },
   "dependencies": {
+    "@types/qrcode": "^1.5.6",
     "better-sqlite3": "^11.0.0",
+    "jsqr": "^1.4.0",
     "leaflet": "^1.9.4",
     "next": "14.2.0",
+    "qrcode": "^1.5.4",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-leaflet": "^4.2.1",
