@@ -1,7 +1,8 @@
 # GroundTruth: Offline Situational Awareness Engine
 
-> During a crisis, conflicting information kills.
-> GroundTruth weighs every report against every other and tells you what's actually happening — even when the internet is down.
+GroundTruth is an offline-first AI system that resolves conflicting real-world reports into a single, explainable decision.
+
+> During a crisis, conflicting information kills. GroundTruth weighs every report against every other and tells you what's actually happening — even when the internet is down.
 
 **Built for the [Gemma 4 Good Hackathon](https://www.kaggle.com/competitions/gemma-4-good-hackathon) on Kaggle.**
 
@@ -60,23 +61,23 @@ npm run db:seed
 
 ## The Problem
 
-When flooding hits, social media fills with contradictory reports. One person says the road is passable. Another says cars are submerged. Emergency responders and residents have no way to know who's right, so they either freeze or take dangerous guesses.
+When disaster strikes, social media fills with contradictory reports. One person says the road is passable. Another says cars are submerged. Residents and responders have no way to know who's right, so they freeze or guess.
 
-Standard AI tools need cloud connectivity to work. Crises are precisely when cell towers go down, internet fails, and you're on your own.
+Cell towers and cloud services fail under disaster load. Standard AI tools require internet in the exact situations where internet fails.
 
 ## What It Does
 
-GroundTruth is a fully offline situational awareness engine that runs Gemma 4 on-device. It:
+GroundTruth collects local reports — photos, voice notes, and text — and uses Gemma 4 to resolve contradictions and produce a single, explainable assessment. It:
 
 1. **Collects multi-modal reports** — photos, voice notes, and text from anyone nearby
-2. **Normalizes every signal** — Gemma 4 extracts structured claims from raw input
-3. **Scores credibility** — each signal gets a reliability score based on evidence type, specificity, and corroboration
-4. **Routes by complexity** — simple clusters are handled locally by Gemma E4B; high-conflict clusters automatically escalate to Gemma 27B via Google AI
-5. **Resolves conflicts** — Gemma 4's native thinking mode (`<|think|>`) detects contradictions, weighs evidence, and produces a transparent chain-of-thought
+2. **Extracts structured claims** — Gemma 4 parses each report into location, severity, and evidence type
+3. **Scores credibility** — each signal is weighted by evidence type, specificity, recency, and corroboration with nearby reports
+4. **Routes by complexity** — simple, consistent reports are handled locally by Gemma E4B; conflicting or dispersed reports are automatically escalated to Gemma 27B via Google AI
+5. **Resolves conflicts** — Gemma 4's step-by-step reasoning mode detects contradictions, weighs evidence, and produces a transparent chain-of-thought
 6. **Outputs calibrated assessments** — not "flooding detected" but "88% confidence, Critical severity, avoid the Lekki-Epe underpass"
-7. **Guides emergency action** — a built-in rescue panel surfaces local emergency numbers, pre-composes an SMS with your GPS location, and provides dispatcher guidance — all without internet
+7. **Guides emergency action** — a built-in rescue panel surfaces the correct regional emergency number, pre-composes an SMS with your GPS coordinates, and provides dispatcher guidance — all without internet
 
-All of this runs on a single device with no internet required.
+The entire system runs on a single device with no internet required.
 
 ---
 
@@ -88,7 +89,7 @@ GroundTruth uses Gemma 4's differentiating features directly, not superficially:
 |---|---|
 | **Multimodal** | Photos submitted as reports are analyzed directly; Gemma 4 extracts water depth, damage severity, and location context from images |
 | **Extended context** | All signals for a geographic cluster are reasoned over in a single long-context pass |
-| **Native thinking mode** | The reasoning engine seeds each cluster assessment with `<|think|>`, forcing Gemma into chain-of-thought before any tool calls. The full trace is stored per event and shown to users on demand |
+| **Native thinking mode** | Gemma 4's step-by-step reasoning mode is enabled before any tool call fires. The full chain-of-thought trace is stored per event and shown to users on demand |
 | **Function calling** | The reasoning engine calls `geo_cluster()`, `check_history()`, `assess_risk()`, and `update_event()` as native tools, not string parsing |
 | **Edge deployment** | Runs via Ollama on any laptop or Raspberry Pi with no cloud dependency |
 
@@ -144,7 +145,7 @@ Each event card shows which model tier assessed it: a teal **"Running offline"**
 
 ### Native Thinking Mode
 
-The reasoning engine pre-fills every cluster assessment with the `<|think|>` token, placing Gemma into chain-of-thought mode before it touches any tools. This produces step-by-step internal reasoning: signal inventory, contradiction analysis, confidence calibration, historical plausibility, and a final decision — all stored per event.
+Gemma 4's step-by-step reasoning mode is enabled before any tool call fires. This produces a full internal trace: signal inventory, contradiction analysis, confidence calibration, historical plausibility, and a final decision — all stored per event.
 
 Users can expand the "AI Reasoning Trace" panel on any event card to read the raw trace exactly as the model produced it.
 
