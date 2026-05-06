@@ -782,9 +782,10 @@ export default function DashboardPage() {
           </div>
           <button
             onClick={() => void triggerAnalysis()}
-            disabled={analyzing}
+            disabled={analyzing || unanalyzedCount === 0}
+            title={unanalyzedCount === 0 ? "No new reports to analyze" : undefined}
             className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-xl flex-shrink-0 transition-colors ${
-              analyzing
+              analyzing || unanalyzedCount === 0
                 ? "bg-slate-100 text-slate-400 cursor-not-allowed"
                 : "bg-teal-600 hover:bg-teal-700 text-white"
             }`}
