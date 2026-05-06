@@ -19,8 +19,14 @@ interface Props {
 
 export default function QRShare({ payload, onClose }: Props) {
   const canvasRef  = useRef<HTMLCanvasElement>(null);
-  const [nfcAvail, setNfcAvail] = useState(false);
+  const [nfcAvail, setNfcAvail]   = useState(false);
   const [nfcStatus, setNfcStatus] = useState<"idle" | "writing" | "done" | "error">("idle");
+  const [canShare, setCanShare]   = useState(false);
+
+  useEffect(() => {
+    // Check if the browser supports sharing files (needed for QR image share)
+    setCanShare(typeof navigator.share === "function");
+  }, []);
 
   // Generate QR code onto the canvas
   // Encodes a URL so any camera app can scan it and land on the import page
@@ -39,6 +45,33 @@ export default function QRShare({ payload, onClose }: Props) {
   useEffect(() => {
     setNfcAvail("NDEFReader" in window);
   }, []);
+
+  function downloadQR() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const link = document.createElement("a");
+    link.download = `groundtruth-report-${Date.now()}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  }
+
+  async function shareQR() {
+    const canvas = canvasRef.current;
+    if (!canvas || !navigator.share) return;
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const file = new File([blob], "groundtruth-report.png", { type: "image/png" });
+      try {
+        await navigator.share({
+          title: "GroundTruth Report",
+          text: "Scan this QR code to import this report into GroundTruth.",
+          files: [file],
+        });
+      } catch {
+        // user cancelled or share failed — no-op
+      }
+    }, "image/png");
+  }
 
   async function writeNFC() {
     if (!("NDEFReader" in window)) return;
@@ -104,6 +137,36 @@ export default function QRShare({ payload, onClose }: Props) {
               </p>
             )}
           </div>
+        </div>
+
+        {/* Download + Share row */}
+        <div className="flex gap-2 w-full">
+          <button
+            onClick={downloadQR}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+              strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download
+          </button>
+          {canShare && (
+            <button
+              onClick={() => void shareQR()}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+              Share
+            </button>
+          )}
         </div>
 
         {/* NFC option */}
