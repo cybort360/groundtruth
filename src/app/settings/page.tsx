@@ -66,7 +66,7 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<SettingsState>({
     backend: "auto",
     googleApiKey: "",
-    googleModel: "gemma-3-27b-it",
+    googleModel: "gemma-4-27b-it",
     ollamaBaseUrl: "http://localhost:11434",
     ollamaModel: "gemma4:e4b",
   });
@@ -313,12 +313,12 @@ export default function SettingsPage() {
                   type="text"
                   value={settings.googleModel}
                   onChange={(e) => update({ googleModel: e.target.value })}
-                  placeholder="gemma-3-27b-it"
+                  placeholder="gemma-4-27b-it"
                   className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
                 <p className="text-xs text-slate-400 mt-1">
-                  Use <code className="bg-slate-100 text-slate-600 px-1 rounded">gemma-3-27b-it</code> (free tier).
-                  Switch to <code className="bg-slate-100 text-slate-600 px-1 rounded">gemini-2.0-flash</code> for speed.
+                  Use <code className="bg-slate-100 text-slate-600 px-1 rounded">gemma-4-27b-it</code> (recommended).
+                  Switch to <code className="bg-slate-100 text-slate-600 px-1 rounded">gemma-4-9b-it</code> for faster responses.
                 </p>
               </div>
             </div>

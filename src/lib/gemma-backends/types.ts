@@ -47,7 +47,7 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   backend: "auto",
   googleApiKey: "",
-  googleModel: "gemma-3-27b-it",   // update to gemma-4-27b-it when available on Google API
+  googleModel: "gemma-4-27b-it",
   ollamaBaseUrl: "http://localhost:11434",
   ollamaModel: "gemma4:e4b",
 };
