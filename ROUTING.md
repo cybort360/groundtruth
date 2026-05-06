@@ -13,19 +13,16 @@ Not every cluster of signals needs the same model. GroundTruth runs a determinis
 
 ## What Makes a Cluster "Complex"
 
-The classifier (`src/lib/complexity-router.ts`) scores each cluster across four dimensions before any AI call:
+The classifier (`src/lib/complexity-router.ts`) checks three conditions before any AI call. A cluster is classified as **complex** if any condition is met:
 
-### 1. Signal Count
-More than 4 signals in a cluster → complexity increases. High signal count means more evidence to weigh and a higher chance of conflicting perspectives.
+### 1. Geographic Spread with Multiple Reporters
+If 3 or more signals in a cluster have GPS coordinates spanning more than **200 metres** apart (measured by pairwise Haversine distance), they are likely describing different parts of the same event — or actively disagreeing about location. This requires deeper synthesis than a local model can reliably provide.
 
-### 2. Geographic Spread (Haversine distance)
-If the GPS coordinates of signals in a cluster span more than 200 metres, the situation covers a wide area. Wide spread increases the chance that different reporters are describing different parts of the same event.
+### 2. Severity Range
+If the difference between the highest and lowest severity scores across signals is **≥ 2** on the 1–5 scale — e.g. one report says "minor", another says "critical" — the cluster contains a meaningful contradiction that warrants the larger model's reasoning capacity.
 
-### 3. Severity Range
-If the difference between the highest and lowest severity scores across signals in a cluster is ≥ 2 (on a 1–5 scale), the signals are meaningfully disagreeing about how serious the situation is.
-
-### 4. Direct Contradictions
-If any two signals in the cluster have a severity difference ≥ 3, they are flagged as directly contradicting each other. This alone can trigger escalation.
+### 3. High Signal Volume
+Clusters with **5 or more signals** are routed to the cloud regardless of spread or severity range. High volume means more evidence to weigh, more potential for conflicting perspectives, and a stronger benefit from extended-context reasoning.
 
 ## The Escalation Decision
 
@@ -37,13 +34,7 @@ complexity.level === "simple"
   → Local inference via Gemma 4 E4B (Ollama)
 ```
 
-A cluster is classified as **complex** if it meets any of:
-- Signal count > 4
-- GPS spread > 200m
-- Severity range ≥ 2
-- Any direct contradiction (severity diff ≥ 3)
-
-Otherwise it is **simple** and stays on-device.
+A cluster stays **simple** (on-device) only if none of the three conditions above are met: fewer than 3 signals with wide GPS spread, severity range < 2, and fewer than 5 signals total.
 
 ## Why This Matters
 

@@ -135,16 +135,18 @@ Dashboard
 
 Not every cluster needs the same model. GroundTruth assesses each signal cluster before sending it to an LLM:
 
-- **Simple clusters** (low signal count, tight GPS spread, consistent severity) → Gemma E4B runs locally via Ollama. Fast, private, zero cost.
-- **Complex clusters** (5+ signals, GPS spread >200m, severity range ≥ 2, direct contradictions) → automatically escalated to Gemma 27B via Google AI for deeper conflict resolution.
+- **Simple clusters** (tight GPS spread, consistent severity, fewer than 5 signals) → Gemma E4B runs locally via Ollama. Fast, private, zero cost.
+- **Complex clusters** (3+ signals with GPS spread >200m, severity range ≥ 2, or 5+ signals) → automatically escalated to Gemma 27B via Google AI for deeper conflict resolution.
 
-Each event card shows which model tier assessed it: a teal "Local AI · E4B" badge or a violet "Cloud AI · Gemma 27B" badge.
+Each event card shows which model tier assessed it: a teal **"Running offline"** badge or a violet **"Cloud-assisted"** badge.
+
+→ See [ROUTING.md](./ROUTING.md) for the full decision logic and escalation thresholds.
 
 ### Native Thinking Mode
 
 The reasoning engine pre-fills every cluster assessment with the `<|think|>` token, placing Gemma into chain-of-thought mode before it touches any tools. This produces step-by-step internal reasoning: signal inventory, contradiction analysis, confidence calibration, historical plausibility, and a final decision — all stored per event.
 
-Users can expand the "Gemma 4 Thinking Process" panel on any event card to read the raw trace exactly as the model produced it.
+Users can expand the "AI Reasoning Trace" panel on any event card to read the raw trace exactly as the model produced it.
 
 ### Severity Assessment
 
