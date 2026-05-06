@@ -70,7 +70,7 @@ function AvoidCard({ event }: { event: AssessedEvent }) {
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-sm font-semibold text-slate-900 leading-snug line-clamp-1">
+            <p className="text-sm font-semibold text-slate-900 leading-snug">
               {event.title}
             </p>
             <div className="flex flex-col items-end flex-shrink-0">
@@ -100,7 +100,7 @@ function CautionCard({ event }: { event: AssessedEvent }) {
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-sm font-semibold text-slate-900 leading-snug line-clamp-1">
+            <p className="text-sm font-semibold text-slate-900 leading-snug">
               {event.title}
             </p>
             <div className="flex flex-col items-end flex-shrink-0">
@@ -127,7 +127,7 @@ function ClearRow({ event }: { event: AssessedEvent }) {
       <span className="flex-shrink-0 text-emerald-500">
         <EventTypeIcon type={event.eventType} className="w-4 h-4" />
       </span>
-      <span className="text-sm text-slate-700 flex-1 truncate">{event.title}</span>
+      <span className="text-sm text-slate-700 flex-1">{event.title}</span>
       <div className="flex flex-col items-end flex-shrink-0">
         <span className="text-xs text-emerald-600 font-bold">
           {event.status === "resolved" ? "Resolved" : `${Math.round(event.confidence * 100)}%`}

@@ -588,7 +588,7 @@ export default function EventCard({ event, isUpdating }: { event: AssessedEvent;
         </span>
 
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-slate-900 leading-snug line-clamp-1">
+          <p className="text-sm font-semibold text-slate-900 leading-snug">
             {event.title}
           </p>
           <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-500 flex-wrap">
