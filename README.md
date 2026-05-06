@@ -241,7 +241,7 @@ This populates the database with the Lagos flooding scenario. If Ollama is runni
 
 ## LAN Mesh Networking
 
-When the internet is down, GroundTruth instances on the same Wi-Fi network discover each other automatically via UDP broadcast (port 7042) and share reports peer-to-peer via HTTP.
+When the internet is down, every phone running GroundTruth on the same Wi-Fi network finds the others automatically and shares reports directly — no server, no cloud, no configuration required. (Technically: UDP broadcast on port 7042 for discovery, HTTP for report sync.)
 
 No configuration required. Open the app on two devices on the same Wi-Fi and watch the Local Mesh panel connect within seconds. The MeshStatus component shows live peer count, bytes synced, and last sync time.
 

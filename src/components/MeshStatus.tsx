@@ -214,10 +214,10 @@ export default function MeshStatus({ isOffline }: { isOffline: boolean }) {
               How it works
             </summary>
             <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
-              GroundTruth instances on the same Wi-Fi discover each other via UDP
-              broadcast (port 7042) — no internet needed. Reports are forwarded
-              peer-to-peer via HTTP so every device sees the full picture, even
-              when the cell tower is down.
+              Every phone on the same Wi-Fi automatically finds the others —
+              no internet needed. When someone submits a report on one device,
+              it instantly appears on all the others. Useful when the cell
+              tower is down but a local hotspot is still running.
             </p>
           </details>
         </div>
