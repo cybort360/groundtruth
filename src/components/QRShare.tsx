@@ -23,9 +23,12 @@ export default function QRShare({ payload, onClose }: Props) {
   const [nfcStatus, setNfcStatus] = useState<"idle" | "writing" | "done" | "error">("idle");
 
   // Generate QR code onto the canvas
+  // Encodes a URL so any camera app can scan it and land on the import page
   useEffect(() => {
     if (!canvasRef.current) return;
-    QRCode.toCanvas(canvasRef.current, JSON.stringify(payload), {
+    const params = new URLSearchParams({ d: btoa(JSON.stringify(payload)) });
+    const url = `${window.location.origin}/import?${params}`;
+    QRCode.toCanvas(canvasRef.current, url, {
       width: 240,
       margin: 2,
       color: { dark: "#0f172a", light: "#ffffff" },

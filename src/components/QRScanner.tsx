@@ -80,7 +80,15 @@ export default function QRScanner() {
 
     if (result) {
       try {
-        const parsed: unknown = JSON.parse(result);
+        // URL format: groundtruth.app/import?d=<base64-json>  (any camera app)
+        // JSON format: raw payload                            (in-app scanner)
+        let parsed: unknown;
+        if (result.includes("/import?")) {
+          const encoded = new URL(result).searchParams.get("d");
+          if (encoded) parsed = JSON.parse(atob(encoded));
+        } else {
+          parsed = JSON.parse(result);
+        }
         if (isValidPayload(parsed)) {
           stopCamera();
           setPayload(parsed);
