@@ -21,9 +21,9 @@ function credibilityColor(score: number): string {
 
 function conflictTypeLabel(type: ConflictPair["conflictType"]): string {
   switch (type) {
-    case "contradictory_claims":   return "Contradictory claims";
-    case "inconsistent_severity":  return "Inconsistent severity";
-    case "temporal_disagreement":  return "Temporal disagreement";
+    case "contradictory_claims":   return "Reports contradict each other";
+    case "inconsistent_severity":  return "Severity conflict";
+    case "temporal_disagreement":  return "Reports disagree on timing";
     default:                       return "Conflict";
   }
 }
@@ -52,7 +52,7 @@ function SignalRow({
             <EvidenceIcon type={signal.evidenceType} className="w-3.5 h-3.5" />
           </span>
           <span className={`text-[11px] font-semibold capitalize ${labelColor}`}>
-            {signal.evidenceType}
+            {signal.evidenceType === "audio" ? "voice" : signal.evidenceType}
           </span>
           <span className="text-slate-300 text-xs">·</span>
           <span className="text-[11px] text-slate-500 tabular-nums">

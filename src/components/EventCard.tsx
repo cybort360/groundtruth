@@ -294,11 +294,20 @@ function trendClass(trend: string) {
   return "bg-slate-100 text-slate-600";
 }
 
-// Trim trend text to keep the badge inline
+// Normalise any trend text Gemma produces into a short sharp label
 function shortTrend(trend: string): string {
-  // Strip parenthetical elaborations: "Getting worse (…)" → "Getting worse"
+  const t = trend.toLowerCase();
+  if (/worsen|deteriorat|getting worse|rising|escalat|increas|spreading|intensif|worsening/.test(t))
+    return "↑ Worsening";
+  if (/improv|better|receding|decreas|subsid|easing|clearing|recovering|going down|dying down/.test(t))
+    return "↓ Improving";
+  if (/stable|steady|unchanged|holding|no change|consistent|neither|plateau|same/.test(t))
+    return "→ Stable";
+  if (/unknown|unclear|insufficient|cannot|uncertain|no data|too early/.test(t))
+    return "? Unknown";
+  // Fallback: strip parentheticals and cap length
   const stripped = trend.replace(/\s*\(.*?\)/, "").trim();
-  return stripped.length > 30 ? stripped.slice(0, 28) + "…" : stripped;
+  return stripped.length > 24 ? stripped.slice(0, 22) + "…" : stripped;
 }
 
 // ── Assessment summary sentence ───────────────────────────────────────────────
@@ -382,6 +391,17 @@ function ReasoningSection({
 
   const summaryLine = buildSummaryLine(parsed, signals, eventType);
 
+  // Top distinct evidence types by credibility score
+  const topSources = (() => {
+    const seen = new Set<string>();
+    return signals
+      .slice()
+      .sort((a, b) => b.credibilityScore - a.credibilityScore)
+      .filter((s) => { if (seen.has(s.evidenceType)) return false; seen.add(s.evidenceType); return true; })
+      .slice(0, 3)
+      .map((s) => s.evidenceType === "audio" ? "voice" : s.evidenceType);
+  })();
+
   // No structured sections — fall back to intro text
   if (!hasSections) {
     if (!parsed.intro && !summaryLine) return null;
@@ -392,8 +412,16 @@ function ReasoningSection({
     <div>
       {/* ── Plain-English summary (always visible) ── */}
       {summaryLine && (
-        <p className="text-sm text-slate-700 font-medium leading-snug mb-2.5">
+        <p className="text-sm text-slate-700 font-medium leading-snug mb-1">
           {summaryLine}
+        </p>
+      )}
+      {topSources.length > 0 && (
+        <p className="text-[11px] text-slate-400 mb-2">
+          Most reliable sources:{" "}
+          <span className="font-medium text-slate-500">
+            {topSources.join(", ")}
+          </span>
         </p>
       )}
 
@@ -503,14 +531,14 @@ function RoutingBadge({ assessedBy }: { assessedBy?: AssessedEvent["assessedBy"]
           strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3" aria-hidden="true">
           <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
         </svg>
-        Cloud AI · Gemma 27B
+        Cloud-assisted
       </span>
     );
   }
   if (assessedBy === "local-fallback") {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full">
-        Heuristic estimate
+        Auto-assessed
       </span>
     );
   }
@@ -523,7 +551,7 @@ function RoutingBadge({ assessedBy }: { assessedBy?: AssessedEvent["assessedBy"]
         <line x1="8" y1="21" x2="16" y2="21" />
         <line x1="12" y1="17" x2="12" y2="21" />
       </svg>
-      Local AI · E4B
+      Running offline
     </span>
   );
 }
@@ -542,6 +570,9 @@ export default function EventCard({ event, isUpdating }: { event: AssessedEvent;
   const parsed      = parseReasoning(event.reasoningChain);
   const severity    = deriveSeverity(event.signals ?? []);
   const severityCfg = severity !== null ? (SEVERITY_CFG[severity] ?? SEVERITY_CFG[3]) : null;
+  const conflictIds = new Set(
+    (event.conflicts ?? []).flatMap((c) => [c.signalA.id, c.signalB.id])
+  );
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-shadow hover:shadow-md">
@@ -572,10 +603,6 @@ export default function EventCard({ event, isUpdating }: { event: AssessedEvent;
             )}
             <span aria-hidden="true">·</span>
             <span>{signalCount} report{signalCount !== 1 ? "s" : ""}</span>
-            <span aria-hidden="true">·</span>
-            <span className={`font-medium ${confidenceLabel(event.confidence).color}`}>
-              {confidenceLabel(event.confidence).text}
-            </span>
           </div>
           <p className="text-[11px] text-slate-400 mt-0.5 tabular-nums">
             Updated {getRelativeTime(event.lastUpdated)}
@@ -612,7 +639,7 @@ export default function EventCard({ event, isUpdating }: { event: AssessedEvent;
           {parsed.recommendation && (
             <div className="bg-teal-50 border border-teal-100 rounded-xl px-3.5 py-3">
               <p className="text-[11px] font-semibold text-teal-600 uppercase tracking-wider mb-1">
-                What to do
+                Recommended action
               </p>
               <p className="text-sm font-medium text-teal-900 leading-snug">
                 {parsed.recommendation}
@@ -648,17 +675,13 @@ export default function EventCard({ event, isUpdating }: { event: AssessedEvent;
                     <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96-.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z" />
                     <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96-.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z" />
                   </svg>
-                  <span>Gemma 4 Thinking Process</span>
+                  <span>AI Reasoning Trace</span>
                   <span className="text-violet-400 text-[10px] ml-auto">{showThinking ? "▲ hide" : "▼ show"}</span>
                 </button>
 
                 {showThinking && (
                   <div className="mt-2 animate-expand">
                     <div className="bg-violet-50 border border-violet-100 rounded-xl p-3 relative overflow-hidden">
-                      {/* Token badge */}
-                      <span className="absolute top-2 right-2 text-[9px] font-mono font-bold text-violet-400 bg-violet-100 px-1.5 py-0.5 rounded">
-                        &lt;|think|&gt;
-                      </span>
                       <p
                         className={`text-[11px] font-mono text-violet-800 leading-relaxed whitespace-pre-wrap break-words ${
                           thinkExpanded ? "" : "line-clamp-6"
@@ -690,7 +713,11 @@ export default function EventCard({ event, isUpdating }: { event: AssessedEvent;
           {event.conflicts.length > 0 && (
             <div>
               <button
-                onClick={() => setShowConflicts((v) => !v)}
+                onClick={() => {
+                  const next = !showConflicts;
+                  setShowConflicts(next);
+                  if (next) setShowSignals(true); // auto-expand signals when highlighting
+                }}
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-full px-3 py-1.5 transition-colors"
               >
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor"
@@ -722,41 +749,52 @@ export default function EventCard({ event, isUpdating }: { event: AssessedEvent;
 
               {showSignals && event.signals.length > 0 && (
                 <ul className="mt-2 space-y-1.5 animate-expand">
-                  {event.signals.map((signal) => (
-                    <li
-                      key={signal.id}
-                      className="bg-slate-50 rounded-xl px-3 py-2.5 space-y-1"
-                    >
-                      {/* Time + credibility row */}
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="text-[11px] font-semibold text-slate-600 tabular-nums"
-                          title={new Date(signal.timestamp).toLocaleString()}
-                        >
-                          {getClockTime(signal.timestamp)}
-                        </span>
-                        <span className="text-slate-300 text-[10px] tabular-nums">
-                          ({getRelativeTime(signal.timestamp)})
-                        </span>
-                        <span className="text-slate-300 text-xs" aria-hidden="true">·</span>
-                        <span className="text-slate-400 text-[11px] capitalize">
-                          {signal.evidenceType}
-                        </span>
-                        <span className="ml-auto bg-slate-200 text-slate-600 rounded-md px-1.5 py-0.5 text-[11px] font-semibold tabular-nums">
-                          {Math.round(signal.credibilityScore * 100)}%
-                        </span>
-                      </div>
-                      {/* Claim */}
-                      <div className="flex items-start gap-2">
-                        <span className="shrink-0 mt-0.5 text-slate-400">
-                          <EvidenceIcon type={signal.evidenceType} />
-                        </span>
-                        <span className="text-xs text-slate-700 leading-relaxed">
-                          {signal.claim}
-                        </span>
-                      </div>
-                    </li>
-                  ))}
+                  {event.signals.map((signal) => {
+                    const inConflict  = conflictIds.has(signal.id);
+                    const highlighted = showConflicts && inConflict;
+                    const dimmed      = showConflicts && !inConflict;
+                    return (
+                      <li
+                        key={signal.id}
+                        className={[
+                          "rounded-xl px-3 py-2.5 space-y-1 transition-all duration-200",
+                          highlighted
+                            ? "bg-amber-50 border-2 border-amber-300"
+                            : "bg-slate-50 border-2 border-transparent",
+                          dimmed ? "opacity-35" : "",
+                        ].join(" ")}
+                      >
+                        {/* Time + credibility row */}
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="text-[11px] font-semibold text-slate-600 tabular-nums"
+                            title={new Date(signal.timestamp).toLocaleString()}
+                          >
+                            {getClockTime(signal.timestamp)}
+                          </span>
+                          <span className="text-slate-300 text-[10px] tabular-nums">
+                            ({getRelativeTime(signal.timestamp)})
+                          </span>
+                          <span className="text-slate-300 text-xs" aria-hidden="true">·</span>
+                          <span className="text-slate-400 text-[11px] capitalize">
+                            {signal.evidenceType === "audio" ? "voice" : signal.evidenceType}
+                          </span>
+                          <span className="ml-auto bg-slate-200 text-slate-600 rounded-md px-1.5 py-0.5 text-[11px] font-semibold tabular-nums">
+                            {Math.round(signal.credibilityScore * 100)}%
+                          </span>
+                        </div>
+                        {/* Claim */}
+                        <div className="flex items-start gap-2">
+                          <span className="shrink-0 mt-0.5 text-slate-400">
+                            <EvidenceIcon type={signal.evidenceType} />
+                          </span>
+                          <span className="text-xs text-slate-700 leading-relaxed">
+                            {signal.claim}
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>

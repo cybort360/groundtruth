@@ -15,7 +15,7 @@ function detectConflicts(signals: NormalizedSignal[]): ConflictPair[] {
           signalA: a,
           signalB: b,
           conflictType: "inconsistent_severity",
-          resolution: `Signal from ${winner.evidenceType} evidence (credibility: ${winner.credibilityScore.toFixed(2)}) was weighted higher.`,
+          resolution: `${winner.evidenceType === "audio" ? "Voice" : winner.evidenceType.charAt(0).toUpperCase() + winner.evidenceType.slice(1)} report (${Math.round(winner.credibilityScore * 100)}% credibility) outweighed the ${winner === a ? b.evidenceType === "audio" ? "voice" : b.evidenceType : a.evidenceType === "audio" ? "voice" : a.evidenceType} report.`,
         });
       }
     }
