@@ -21,6 +21,16 @@ function getRelativeTime(iso: string): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+function formatCacheAge(ts: number): string {
+  const secs = Math.floor((Date.now() - ts) / 1000);
+  if (secs < 60) return "just now";
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
 // ── Low-bandwidth detection ───────────────────────────────────────────────────
 
 type NavConnection = EventTarget & { effectiveType?: string; saveData?: boolean };
@@ -81,6 +91,8 @@ export default function DashboardPage() {
   const [analyzing, setAnalyzing]               = useState(false);
   const [lastAnalyzed, setLastAnalyzed]         = useState<string | null>(null);
   const [analyzeError, setAnalyzeError]         = useState<string | null>(null);
+  const [fromCache, setFromCache]               = useState(false);
+  const [cachedAt, setCachedAt]                 = useState<number | null>(null);
   const [filterType, setFilterType]             = useState<string>("all");
   const [minConfidence, setMinConfidence]       = useState<number>(0);
   const [sortOrder, setSortOrder]               = useState<"confidence" | "recency">("confidence");
@@ -106,7 +118,14 @@ export default function DashboardPage() {
     try {
       const res = await fetch("/api/events");
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
-      const data = (await res.json()) as { events: AssessedEvent[]; lastUpdated: string; unanalyzedCount: number };
+
+      const isStale   = res.headers.get("x-sw-cache") === "true";
+      const noData    = res.headers.get("x-sw-no-data") === "true";
+      const cachedTs  = res.headers.get("x-cached-at");
+      setFromCache(isStale);
+      setCachedAt(isStale && cachedTs && !noData ? Number(cachedTs) : null);
+
+      const data = (await res.json()) as { events: AssessedEvent[]; lastUpdated: string; unanalyzedCount: number; offline?: boolean };
 
       // Find events whose confidence shifted since the last poll.
       const changed = new Set<string>();
@@ -844,6 +863,29 @@ export default function DashboardPage() {
               ? "No events match your filter"
               : `${visibleEvents.length} situation${visibleEvents.length !== 1 ? "s" : ""} · last ${timeframeDays === 1 ? "24 hours" : `${timeframeDays} days`}`}
           </p>
+        )}
+
+        {/* ── Offline cache banner ── */}
+        {fromCache && (
+          <div className="mt-3 flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+              strokeLinecap="round" strokeLinejoin="round"
+              className="w-4 h-4 text-amber-500 flex-shrink-0" aria-hidden="true">
+              <path d="M1 6s4-4 11-4 11 4 11 4" />
+              <path d="M1 10s4-4 11-4 11 4 11 4" />
+              <line x1="1" y1="1" x2="23" y2="23" />
+            </svg>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-800">
+                {cachedAt ? `Offline — showing data from ${formatCacheAge(cachedAt)}` : "No cached data yet"}
+              </p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                {cachedAt
+                  ? "Live updates paused. Data will refresh when your connection returns."
+                  : "Connect once to save event data for offline use."}
+              </p>
+            </div>
+          </div>
         )}
 
         {/* ── Error banner ── */}
