@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { QRPayload } from "./QRShare";
+import { isEncryptedPayload, decryptPayload, type EncryptedQRPayload } from "@/lib/crypto";
 
-type ScanState = "idle" | "scanning" | "detected" | "importing" | "done" | "error";
+type ScanState = "idle" | "scanning" | "detected" | "locked" | "importing" | "done" | "error";
 
 interface ImportedSignal {
   id: string;
@@ -31,10 +32,15 @@ export default function QRScanner() {
   const streamRef     = useRef<MediaStream | null>(null);
   const rafRef        = useRef<number | null>(null);
 
-  const [scanState, setScanState]         = useState<ScanState>("idle");
-  const [payload, setPayload]             = useState<QRPayload | null>(null);
-  const [errorMsg, setErrorMsg]           = useState<string | null>(null);
+  const [scanState, setScanState]           = useState<ScanState>("idle");
+  const [payload, setPayload]               = useState<QRPayload | null>(null);
+  const [errorMsg, setErrorMsg]             = useState<string | null>(null);
   const [importedSignal, setImportedSignal] = useState<ImportedSignal | null>(null);
+  // Encrypted QR state
+  const [encPayload, setEncPayload]         = useState<EncryptedQRPayload | null>(null);
+  const [pin, setPin]                       = useState("");
+  const [decrypting, setDecrypting]         = useState(false);
+  const [decryptError, setDecryptError]     = useState<string | null>(null);
 
   const stopCamera = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -95,6 +101,13 @@ export default function QRScanner() {
           setScanState("detected");
           return;
         }
+        // Encrypted v2 payload — need PIN before we can preview
+        if (isEncryptedPayload(parsed)) {
+          stopCamera();
+          setEncPayload(parsed);
+          setScanState("locked");
+          return;
+        }
       } catch {
         // not a GroundTruth QR — keep scanning
       }
@@ -126,8 +139,31 @@ export default function QRScanner() {
     stopCamera();
     setScanState("idle");
     setPayload(null);
+    setEncPayload(null);
     setImportedSignal(null);
     setErrorMsg(null);
+    setPin("");
+    setDecryptError(null);
+  }
+
+  async function handleDecrypt() {
+    if (!encPayload) return;
+    setDecrypting(true);
+    setDecryptError(null);
+    try {
+      const plaintext = await decryptPayload(encPayload, pin);
+      const parsed: unknown = JSON.parse(plaintext);
+      if (isValidPayload(parsed)) {
+        setPayload(parsed);
+        setScanState("detected");
+      } else {
+        setDecryptError("Decrypted data is not a valid report.");
+      }
+    } catch {
+      setDecryptError("Wrong PIN — could not decrypt.");
+    } finally {
+      setDecrypting(false);
+    }
   }
 
   async function importReport() {
@@ -207,6 +243,54 @@ export default function QRScanner() {
           <p className="text-xs text-slate-500">Point at a GroundTruth QR code</p>
           <button onClick={cancel} className="text-xs font-semibold text-slate-500 hover:text-rose-500 transition-colors">
             Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (scanState === "locked") {
+    return (
+      <div className="bg-white border border-teal-200 rounded-2xl overflow-hidden">
+        <div className="bg-teal-50 px-4 py-3 flex items-center gap-2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}
+            strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-teal-600 flex-shrink-0">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+          <p className="text-sm font-semibold text-teal-800">Encrypted report detected</p>
+        </div>
+        <div className="px-4 py-4 space-y-3">
+          <p className="text-xs text-slate-500">
+            This report is PIN-protected. Ask the sender for the PIN to unlock it.
+          </p>
+          <input
+            type="text"
+            inputMode="text"
+            value={pin}
+            onChange={(e) => { setPin(e.target.value); setDecryptError(null); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && pin.length >= 4) void handleDecrypt(); }}
+            placeholder="Enter PIN"
+            className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-teal-500"
+            autoFocus
+          />
+          {decryptError && (
+            <p className="text-xs text-rose-600 font-medium">{decryptError}</p>
+          )}
+        </div>
+        <div className="px-4 pb-4 flex gap-2">
+          <button
+            onClick={cancel}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => void handleDecrypt()}
+            disabled={pin.length < 4 || decrypting}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
+          >
+            {decrypting ? "Decrypting…" : "Unlock"}
           </button>
         </div>
       </div>

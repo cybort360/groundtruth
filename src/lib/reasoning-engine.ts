@@ -17,7 +17,7 @@
 import { agenticLoop } from "./gemma";
 import { executeTool } from "./tools";
 import { geoCluster } from "./tools/geo-cluster";
-import { getAllSignals, getActiveEvents, getEventSignals, linkSignalToEvent, setEventAssessedBy, setEventThinkingTrace } from "./db";
+import { getAllSignals, getActiveEvents, getEventSignals, getEventsNear, updateEventConfidence, linkSignalToEvent, setEventAssessedBy, setEventThinkingTrace } from "./db";
 import {
   CLUSTER_ASSESSMENT_SYSTEM_PROMPT,
   CLUSTER_ASSESSMENT_TOOLS,
@@ -164,6 +164,51 @@ export async function runReasoning(): Promise<ReasoningOutput> {
       const fallbackId = await fallbackPersist(cluster, i);
       setEventAssessedBy(fallbackId, "local-fallback");
     }
+  }
+
+  // ── Phase 3: Cross-cluster correlation ───────────────────────────────────
+  // After all clusters are assessed, look for neighboring events of the same
+  // type. Corroborating neighbors boost confidence; the boost is capped so a
+  // single nearby event can't push an uncertain assessment to high confidence.
+  const CORRELATION_RADIUS_METERS = 1000;
+  const CORRELATION_CONFIDENCE_THRESHOLD = 0.55;
+  const MAX_BOOST = 0.12;
+
+  const freshEvents = getActiveEvents();
+  for (const event of freshEvents) {
+    const neighbors = getEventsNear(event.latitude, event.longitude, CORRELATION_RADIUS_METERS)
+      .filter(
+        (n) =>
+          n.id !== event.id &&
+          n.eventType === event.eventType &&
+          n.confidence >= CORRELATION_CONFIDENCE_THRESHOLD,
+      );
+
+    if (neighbors.length === 0) continue;
+
+    const avgNeighborConfidence =
+      neighbors.reduce((sum, n) => sum + n.confidence, 0) / neighbors.length;
+
+    // Boost scales with neighbor count (diminishing returns) and their avg confidence.
+    const boost = Math.min(
+      MAX_BOOST,
+      neighbors.length * (avgNeighborConfidence - CORRELATION_CONFIDENCE_THRESHOLD) * 0.25,
+    );
+
+    if (boost <= 0.005) continue; // not worth updating for tiny differences
+
+    const newConfidence = Math.min(0.97, event.confidence + boost);
+    const note =
+      `\n\n[Cross-cluster correlation] ${neighbors.length} nearby ${event.eventType} event(s) ` +
+      `within ${CORRELATION_RADIUS_METERS}m corroborate this assessment ` +
+      `(avg confidence ${Math.round(avgNeighborConfidence * 100)}%). ` +
+      `Confidence adjusted from ${Math.round(event.confidence * 100)}% → ${Math.round(newConfidence * 100)}%.`;
+
+    updateEventConfidence(event.id, newConfidence, note);
+    console.log(
+      `[correlation] Event "${event.title}": +${Math.round(boost * 100)}pp ` +
+      `(${neighbors.length} neighbor(s), avg confidence ${Math.round(avgNeighborConfidence * 100)}%)`,
+    );
   }
 
   // ── Fetch updated events and enrich with signals + conflicts ──────────────

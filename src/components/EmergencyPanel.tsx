@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTranslations } from "@/lib/i18n";
 
 // ── Regional emergency numbers ────────────────────────────────────────────────
 
@@ -74,6 +75,7 @@ function getRegionalNumbers(lat: number, lng: number): AgencyNumber[] {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function EmergencyPanel() {
+  const { t } = useTranslations();
   const [expanded, setExpanded]   = useState(false);
   const [copied, setCopied]       = useState(false);
   const [lat, setLat]             = useState<number | null>(null);
@@ -99,11 +101,9 @@ export default function EmergencyPanel() {
       : null;
 
   const smsBody =
-    lat !== null && lng !== null
-      ? encodeURIComponent(
-          `EMERGENCY SOS — I need rescue assistance.\nLocation: ${mapsUrl}\nGPS: ${lat.toFixed(6)}, ${lng.toFixed(6)}\nSent via GroundTruth.`,
-        )
-      : encodeURIComponent("EMERGENCY SOS — I need rescue assistance. Please call me immediately.");
+    lat !== null && lng !== null && mapsUrl
+      ? encodeURIComponent(t.emergency.smsBody(mapsUrl, lat, lng))
+      : encodeURIComponent(t.emergency.smsBodyNoGps);
 
   const regionalNumbers =
     lat !== null && lng !== null ? getRegionalNumbers(lat, lng) : [];
@@ -131,9 +131,9 @@ export default function EmergencyPanel() {
             <span className="absolute inset-0 w-3 h-3 bg-rose-400 rounded-full animate-ping opacity-75" />
           </span>
           <div>
-            <p className="text-sm font-bold text-rose-800 leading-tight">Need rescue?</p>
+            <p className="text-sm font-bold text-rose-800 leading-tight">{t.emergency.title}</p>
             <p className="text-[11px] text-rose-500 leading-tight">
-              Call emergency services first — then submit a report.
+              {t.emergency.subtitle}
             </p>
           </div>
         </div>
@@ -149,7 +149,7 @@ export default function EmergencyPanel() {
               strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 flex-shrink-0">
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.59 1.23h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.78a16 16 0 0 0 6.1 6.1l.38-.38a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
             </svg>
-            Call {primaryNumber}
+            {t.emergency.callButton} {primaryNumber}
           </a>
 
           {/* SMS my location */}
@@ -162,15 +162,15 @@ export default function EmergencyPanel() {
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
               <circle cx="12" cy="10" r="3" />
             </svg>
-            SMS Location
+            {t.emergency.smsButton}
           </a>
         </div>
 
         {/* Location status */}
         <div className="mt-2.5 flex items-center justify-between">
           <p className="text-[11px] text-rose-500 font-medium">
-            {locStatus === "acquiring" && "📡 Acquiring GPS…"}
-            {locStatus === "failed"    && "⚠ GPS unavailable — share your address verbally"}
+            {locStatus === "acquiring" && t.emergency.gpsAcquiring}
+            {locStatus === "failed"    && t.emergency.gpsFailed}
             {locStatus === "ready"     && `📍 ${lat!.toFixed(5)}, ${lng!.toFixed(5)}`}
           </p>
           {locStatus === "ready" && (
@@ -178,7 +178,7 @@ export default function EmergencyPanel() {
               onClick={copyLocation}
               className="text-[11px] font-semibold text-rose-600 hover:text-rose-800 transition-colors"
             >
-              {copied ? "✓ Copied" : "Copy link"}
+              {copied ? t.emergency.copied : t.emergency.copyLink}
             </button>
           )}
         </div>
@@ -190,7 +190,7 @@ export default function EmergencyPanel() {
         className="w-full flex items-center justify-between px-4 py-2.5 bg-rose-100 hover:bg-rose-200 transition-colors border-t border-rose-200 text-left"
       >
         <span className="text-[11px] font-semibold text-rose-700">
-          {expanded ? "Hide local agencies" : "See local agency numbers & guidance"}
+          {expanded ? t.emergency.hideAgencies : t.emergency.showAgencies}
         </span>
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={2}
           strokeLinecap="round" strokeLinejoin="round"
@@ -207,7 +207,7 @@ export default function EmergencyPanel() {
           {regionalNumbers.length > 0 ? (
             <div>
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Local emergency numbers
+                {t.emergency.localNumbers}
               </p>
               <div className="space-y-1.5">
                 {regionalNumbers.map((agency) => (
@@ -242,21 +242,21 @@ export default function EmergencyPanel() {
             </div>
           ) : (
             <p className="text-xs text-slate-400 italic">
-              Enable location to see numbers for your area. Default: dial 112.
+              {t.emergency.noLocation}
             </p>
           )}
 
           {/* What to say */}
           <div className="bg-amber-50 border border-amber-100 rounded-xl px-3.5 py-3">
             <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1.5">
-              What to tell them
+              {t.emergency.whatToTell}
             </p>
             <ul className="text-xs text-amber-800 space-y-1 leading-relaxed">
-              <li>• <strong>Your location</strong> — street name, landmark, or GPS coordinates</li>
-              <li>• <strong>Nature of emergency</strong> — flooding / collapsed structure / wildfire / injury</li>
-              <li>• <strong>Number of people</strong> — how many need rescue</li>
-              <li>• <strong>Your condition</strong> — injured, trapped, or mobile</li>
-              <li>• <strong>Stay on the line</strong> — don't hang up until told to</li>
+              <li>• <strong>{t.emergency.tell.location}</strong> — {t.emergency.tell.locationDetail}</li>
+              <li>• <strong>{t.emergency.tell.nature}</strong> — {t.emergency.tell.natureDetail}</li>
+              <li>• <strong>{t.emergency.tell.people}</strong> — {t.emergency.tell.peopleDetail}</li>
+              <li>• <strong>{t.emergency.tell.condition}</strong> — {t.emergency.tell.conditionDetail}</li>
+              <li>• <strong>{t.emergency.tell.stayOn}</strong> — {t.emergency.tell.stayOnDetail}</li>
             </ul>
           </div>
 
@@ -265,8 +265,8 @@ export default function EmergencyPanel() {
             <button
               onClick={() => {
                 void navigator.share({
-                  title: "Emergency SOS — My Location",
-                  text: `I need rescue assistance. My location: ${mapsUrl}`,
+                  title: t.emergency.shareTitle,
+                  text: t.emergency.shareText(mapsUrl),
                   url: mapsUrl,
                 });
               }}
@@ -278,7 +278,7 @@ export default function EmergencyPanel() {
                 <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
                 <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
               </svg>
-              Share My Location
+              {t.emergency.shareButton}
             </button>
           )}
         </div>

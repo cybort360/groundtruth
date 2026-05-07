@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useTranslations, SUPPORTED_LOCALES, type LocaleCode } from "@/lib/i18n";
 
 type BackendType = "auto" | "ollama" | "google";
 
@@ -63,6 +64,7 @@ const BACKEND_OPTIONS: { value: BackendType; label: string; desc: string }[] = [
 ];
 
 export default function SettingsPage() {
+  const { t, locale, setLocale } = useTranslations();
   const [settings, setSettings] = useState<SettingsState>({
     backend: "auto",
     googleApiKey: "",
@@ -77,6 +79,15 @@ export default function SettingsPage() {
   const [testResult, setTestResult] = useState<TestResult>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // GDACS sync state
+  const [gdacsStatus, setGdacsStatus] = useState<{
+    lastSync: string | null;
+    totalEvents: number;
+    syncCount: number;
+  } | null>(null);
+  const [gdacsSyncing, setGdacsSyncing] = useState(false);
+  const [gdacsSyncResult, setGdacsSyncResult] = useState<{ ok: boolean; message: string } | null>(null);
+
   useEffect(() => {
     fetch("/api/settings")
       .then((r) => r.json())
@@ -85,7 +96,35 @@ export default function SettingsPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+
+    fetch("/api/gdacs/sync")
+      .then((r) => r.json())
+      .then(setGdacsStatus)
+      .catch(() => null);
   }, []);
+
+  async function handleGDACSSync() {
+    setGdacsSyncing(true);
+    setGdacsSyncResult(null);
+    try {
+      const res = await fetch("/api/gdacs/sync", { method: "POST" });
+      const data = (await res.json()) as { ok: boolean; message?: string; error?: string; inserted?: number };
+      setGdacsSyncResult({
+        ok: data.ok,
+        message: data.ok
+          ? (data.message ?? `Synced ${data.inserted ?? 0} events.`)
+          : (data.error ?? "Sync failed."),
+      });
+      if (data.ok) {
+        const status = await fetch("/api/gdacs/sync").then((r) => r.json()) as typeof gdacsStatus;
+        setGdacsStatus(status);
+      }
+    } catch {
+      setGdacsSyncResult({ ok: false, message: "Network error — check your connection." });
+    } finally {
+      setGdacsSyncing(false);
+    }
+  }
 
   function update(patch: Partial<SettingsState>) {
     setSaved(false);
@@ -183,6 +222,36 @@ export default function SettingsPage() {
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-5 pb-10 space-y-4">
+
+        {/* Language selector */}
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-3">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900">{t.settings.language}</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{t.settings.languageDesc}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {SUPPORTED_LOCALES.map((l) => (
+              <button
+                key={l.code}
+                onClick={() => setLocale(l.code as LocaleCode)}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-left text-sm transition-colors ${
+                  locale === l.code
+                    ? "border-teal-500 bg-teal-50 text-teal-800"
+                    : "border-slate-200 text-slate-700 hover:border-slate-300"
+                }`}
+              >
+                <span className="font-semibold text-xs leading-tight flex-1 min-w-0">
+                  {l.nativeLabel}
+                </span>
+                {locale === l.code && (
+                  <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 text-teal-600 flex-shrink-0">
+                    <path d="M13.5 3.5L6 11 2.5 7.5l-1 1L6 13l8.5-8.5z" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+        </section>
 
         {/* Backend selector */}
         <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
@@ -365,6 +434,69 @@ export default function SettingsPage() {
             {saving ? "Saving…" : "Save Settings"}
           </button>
         </div>
+
+        {/* GDACS Historical Data */}
+        <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+          <div>
+            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth={1.8}
+                strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-slate-400">
+                <circle cx="10" cy="10" r="8" />
+                <path d="M10 5v5l3 3" />
+              </svg>
+              Historical Disaster Data
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+              Syncs verified disaster records from{" "}
+              <a href="https://gdacs.org" target="_blank" rel="noreferrer" className="text-teal-600 hover:underline">
+                GDACS
+              </a>{" "}
+              — the EU/UN Global Disaster Alert and Coordination System. Gemma uses this to
+              ground its reasoning in real incident history, not simulation.
+            </p>
+          </div>
+
+          {gdacsStatus && (
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-slate-50 rounded-xl px-3.5 py-2.5">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Events cached</p>
+                <p className="text-sm font-bold text-slate-700 mt-0.5">
+                  {gdacsStatus.totalEvents.toLocaleString()}
+                </p>
+              </div>
+              <div className="bg-slate-50 rounded-xl px-3.5 py-2.5">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Last sync</p>
+                <p className="text-sm font-bold text-slate-700 mt-0.5">
+                  {gdacsStatus.lastSync
+                    ? new Date(gdacsStatus.lastSync).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+                    : "Never"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {gdacsSyncResult && (
+            <div className={`rounded-xl px-3.5 py-2.5 text-xs font-medium border ${
+              gdacsSyncResult.ok
+                ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                : "bg-rose-50 text-rose-800 border-rose-200"
+            }`}>
+              {gdacsSyncResult.message}
+            </div>
+          )}
+
+          <button
+            onClick={() => void handleGDACSSync()}
+            disabled={gdacsSyncing}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold bg-slate-800 text-white hover:bg-slate-700 disabled:opacity-50 disabled:cursor-wait transition-colors"
+          >
+            {gdacsSyncing ? "Fetching from GDACS…" : "Sync Historical Data"}
+          </button>
+          <p className="text-xs text-slate-400">
+            Fetches 3 years of Red + Orange alert events globally. Takes ~10 seconds.
+            Results are cached offline — sync once, use forever.
+          </p>
+        </section>
 
         {/* PWA install hint */}
         <section className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-1.5">

@@ -84,6 +84,35 @@ function initializeSchema() {
     CREATE INDEX IF NOT EXISTS idx_signals_geo ON signals(latitude, longitude);
     CREATE INDEX IF NOT EXISTS idx_events_geo ON events(latitude, longitude);
     CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
+
+    -- GDACS: verified historical disaster events from the EU/UN public API.
+    -- Populated by /api/gdacs/sync. Queried by check_history for real baseline data.
+    CREATE TABLE IF NOT EXISTS gdacs_events (
+      gdacs_id    TEXT PRIMARY KEY,
+      event_type  TEXT NOT NULL,
+      latitude    REAL NOT NULL,
+      longitude   REAL NOT NULL,
+      country     TEXT,
+      alert_level TEXT,
+      severity    TEXT,
+      name        TEXT,
+      description TEXT,
+      severity_text TEXT,
+      from_date   TEXT,
+      to_date     TEXT,
+      fetched_at  TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS gdacs_sync_log (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      synced_at      TEXT NOT NULL,
+      events_fetched INTEGER NOT NULL,
+      from_date      TEXT NOT NULL,
+      to_date        TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_gdacs_geo  ON gdacs_events(latitude, longitude);
+    CREATE INDEX IF NOT EXISTS idx_gdacs_type ON gdacs_events(event_type);
   `);
 
   // Migrations: add columns if they don't exist yet.
@@ -243,6 +272,48 @@ export function getActiveEvents(): AssessedEvent[] {
   return rows.map(mapEvent);
 }
 
+/**
+ * Return all events (any status) within an approximate bounding box of the
+ * given coordinates. Used by check_history and cross-cluster correlation.
+ * delta is in degrees: 1° ≈ 111 km, so radiusMeters / 111000 gives the box half-width.
+ */
+export function getEventsNear(
+  lat: number,
+  lng: number,
+  radiusMeters: number,
+): AssessedEvent[] {
+  const delta = radiusMeters / 111000;
+  const rows = getDb()
+    .prepare(`
+      SELECT * FROM events
+      WHERE ABS(latitude  - ?) < ?
+        AND ABS(longitude - ?) < ?
+      ORDER BY last_updated DESC
+    `)
+    .all(lat, delta, lng, delta) as Record<string, unknown>[];
+  return rows.map(mapEvent);
+}
+
+/**
+ * Update an event's confidence and append a note to its reasoning chain.
+ * Used by the cross-cluster correlation pass in the reasoning engine.
+ */
+export function updateEventConfidence(
+  eventId: string,
+  confidence: number,
+  appendReasoning: string,
+): void {
+  getDb()
+    .prepare(`
+      UPDATE events SET
+        confidence      = ?,
+        reasoning_chain = reasoning_chain || ?,
+        last_updated    = ?
+      WHERE id = ?
+    `)
+    .run(confidence, appendReasoning, new Date().toISOString(), eventId);
+}
+
 export function setEventAssessedBy(eventId: string, assessedBy: string): void {
   getDb()
     .prepare("UPDATE events SET assessed_by = ? WHERE id = ?")
@@ -253,6 +324,126 @@ export function setEventThinkingTrace(eventId: string, trace: string): void {
   getDb()
     .prepare("UPDATE events SET thinking_trace = ? WHERE id = ?")
     .run(trace, eventId);
+}
+
+// --- GDACS Operations ---
+
+import type { GDACSEvent } from "./gdacs";
+
+/** Bulk-insert GDACS events. Uses INSERT OR REPLACE so re-syncing is safe. */
+export function insertGDACSEvents(events: GDACSEvent[]): number {
+  const db = getDb();
+  const stmt = db.prepare(`
+    INSERT OR REPLACE INTO gdacs_events
+      (gdacs_id, event_type, latitude, longitude, country, alert_level, severity,
+       name, description, severity_text, from_date, to_date, fetched_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const now = new Date().toISOString();
+  const insert = db.transaction((rows: GDACSEvent[]) => {
+    for (const e of rows) {
+      stmt.run(
+        e.gdacsId, e.eventType, e.latitude, e.longitude,
+        e.country, e.alertLevel, e.severity,
+        e.name, e.description, e.severityText,
+        e.fromDate, e.toDate, now,
+      );
+    }
+  });
+  insert(events);
+  return events.length;
+}
+
+export interface GDACSHistoricalRecord {
+  gdacsId: string;
+  eventType: string;
+  latitude: number;
+  longitude: number;
+  country: string;
+  alertLevel: string;
+  severity: string;
+  name: string;
+  description: string;
+  severityText: string;
+  fromDate: string;
+  toDate: string;
+  distanceMeters: number;
+}
+
+/** Return GDACS events near a coordinate within a bounding box. */
+export function getGDACSEventsNear(
+  lat: number,
+  lng: number,
+  radiusMeters: number,
+  eventType?: string,
+): GDACSHistoricalRecord[] {
+  const delta = radiusMeters / 111000;
+  let query = `
+    SELECT * FROM gdacs_events
+    WHERE ABS(latitude  - ?) < ?
+      AND ABS(longitude - ?) < ?
+  `;
+  const params: (number | string)[] = [lat, delta, lng, delta];
+  if (eventType) {
+    query += ` AND event_type = ?`;
+    params.push(eventType);
+  }
+  query += ` ORDER BY from_date DESC LIMIT 20`;
+
+  const rows = getDb().prepare(query).all(...params) as Record<string, unknown>[];
+  return rows.map((r) => ({
+    gdacsId: r.gdacs_id as string,
+    eventType: r.event_type as string,
+    latitude: r.latitude as number,
+    longitude: r.longitude as number,
+    country: r.country as string,
+    alertLevel: r.alert_level as string,
+    severity: r.severity as string,
+    name: r.name as string,
+    description: r.description as string,
+    severityText: r.severity_text as string,
+    fromDate: r.from_date as string,
+    toDate: r.to_date as string,
+    distanceMeters: Math.round(
+      haversineApprox(lat, lng, r.latitude as number, r.longitude as number)
+    ),
+  }));
+}
+
+function haversineApprox(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export interface GDACSSyncStatus {
+  lastSync: string | null;
+  totalEvents: number;
+  syncCount: number;
+}
+
+export function getGDACSSyncStatus(): GDACSSyncStatus {
+  const db = getDb();
+  const last = db
+    .prepare(`SELECT synced_at, events_fetched FROM gdacs_sync_log ORDER BY id DESC LIMIT 1`)
+    .get() as { synced_at: string; events_fetched: number } | undefined;
+  const total = (db.prepare(`SELECT COUNT(*) as n FROM gdacs_events`).get() as { n: number }).n;
+  const count = (db.prepare(`SELECT COUNT(*) as n FROM gdacs_sync_log`).get() as { n: number }).n;
+  return {
+    lastSync: last?.synced_at ?? null,
+    totalEvents: total,
+    syncCount: count,
+  };
+}
+
+export function logGDACSSync(eventsFetched: number, fromDate: string, toDate: string): void {
+  getDb()
+    .prepare(`INSERT INTO gdacs_sync_log (synced_at, events_fetched, from_date, to_date) VALUES (?, ?, ?, ?)`)
+    .run(new Date().toISOString(), eventsFetched, fromDate, toDate);
 }
 
 /** Count signals not yet linked to any event — the "unanalyzed" queue depth. */

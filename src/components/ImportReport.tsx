@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { QRPayload } from "./QRShare";
+import { isEncryptedPayload, decryptPayload } from "@/lib/crypto";
 
 function isValidPayload(obj: unknown): obj is QRPayload {
   if (typeof obj !== "object" || obj === null) return false;
@@ -29,22 +30,59 @@ export default function ImportReport({ encoded }: { encoded: string | null }) {
   const [importedSignal, setImported] = useState<ImportedSignal | null>(null);
   const [errorMsg, setErrorMsg]       = useState<string | null>(null);
 
-  // Decode and validate the payload
-  let payload: QRPayload | null = null;
+  // ── Decryption state (only used when payload is encrypted) ───────────────
+  const [pin, setPin]             = useState("");
+  const [decrypting, setDecrypting] = useState(false);
+  const [decryptError, setDecryptError] = useState<string | null>(null);
+  const [payload, setPayload]     = useState<QRPayload | null>(null);
+
+  // ── Decode the raw encoded string ─────────────────────────────────────────
   let decodeError: string | null = null;
+  let isEncrypted = false;
+  let rawParsed: unknown = null;
 
   if (!encoded) {
     decodeError = "No report data found in this link.";
   } else {
     try {
-      const parsed: unknown = JSON.parse(atob(encoded));
-      if (isValidPayload(parsed)) {
-        payload = parsed;
-      } else {
+      rawParsed = JSON.parse(atob(encoded));
+      if (isEncryptedPayload(rawParsed)) {
+        isEncrypted = true;
+        // Don't set payload yet — need PIN first
+      } else if (isValidPayload(rawParsed) && payload === null) {
+        // Plain v1 payload — set via useState initializer equivalent
+        // We use a workaround: render sets it on first pass
+      } else if (!isEncryptedPayload(rawParsed) && !isValidPayload(rawParsed)) {
         decodeError = "This QR code doesn't contain a valid GroundTruth report.";
       }
     } catch {
       decodeError = "Could not read the report data — the link may be corrupted.";
+    }
+  }
+
+  // For plain v1 payloads, inject into state on first render if not already set
+  if (!isEncrypted && !decodeError && rawParsed && isValidPayload(rawParsed) && payload === null) {
+    // React will reconcile this synchronously on the same render pass
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    Promise.resolve().then(() => setPayload(rawParsed as QRPayload));
+  }
+
+  async function handleDecrypt() {
+    if (!rawParsed || !isEncryptedPayload(rawParsed)) return;
+    setDecrypting(true);
+    setDecryptError(null);
+    try {
+      const plaintext = await decryptPayload(rawParsed, pin);
+      const parsed: unknown = JSON.parse(plaintext);
+      if (isValidPayload(parsed)) {
+        setPayload(parsed);
+      } else {
+        setDecryptError("Decrypted data is not a valid report.");
+      }
+    } catch {
+      setDecryptError("Wrong PIN — the content could not be decrypted.");
+    } finally {
+      setDecrypting(false);
     }
   }
 
@@ -84,6 +122,61 @@ export default function ImportReport({ encoded }: { encoded: string | null }) {
         <Link href="/report"
           className="inline-block mt-2 text-xs font-semibold text-teal-700 underline">
           Go to Report page
+        </Link>
+      </div>
+    );
+  }
+
+  // ── Encrypted — needs PIN ─────────────────────────────────────────────────
+  if (isEncrypted && !payload) {
+    return (
+      <div className="space-y-4">
+        <div className="bg-white border border-slate-200 rounded-2xl px-5 py-5 space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-teal-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+                strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 text-teal-700">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Encrypted report</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                This QR code is PIN-protected. Ask the sender for the PIN.
+              </p>
+            </div>
+          </div>
+
+          <input
+            type="text"
+            inputMode="text"
+            value={pin}
+            onChange={(e) => { setPin(e.target.value); setDecryptError(null); }}
+            onKeyDown={(e) => { if (e.key === "Enter" && pin.length >= 4) void handleDecrypt(); }}
+            placeholder="Enter PIN"
+            className="w-full px-3.5 py-3 border border-slate-200 rounded-xl text-sm font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-teal-500"
+            autoFocus
+          />
+
+          {decryptError && (
+            <p className="text-xs text-rose-600 font-medium">{decryptError}</p>
+          )}
+        </div>
+
+        <button
+          onClick={() => void handleDecrypt()}
+          disabled={pin.length < 4 || decrypting}
+          className="w-full py-3 rounded-xl text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {decrypting ? "Decrypting…" : "Unlock Report"}
+        </button>
+
+        <Link
+          href="/"
+          className="block text-center text-xs text-slate-400 hover:text-teal-600 transition-colors"
+        >
+          Go to dashboard without importing
         </Link>
       </div>
     );
@@ -142,12 +235,24 @@ export default function ImportReport({ encoded }: { encoded: string | null }) {
     );
   }
 
-  // ── Preview + import ─────────────────────────────────────────────────────
-  const typeLabel =
-    payload!.type === "photo" ? "Photo report" :
-    payload!.type === "voice" ? "Voice report" : "Text report";
+  // ── Preview + import (payload ready — plain or just decrypted) ────────────
+  if (!payload) {
+    // Still waiting for async state update on plain payloads
+    return (
+      <div className="flex items-center justify-center py-12">
+        <svg className="animate-spin h-5 w-5 text-teal-500" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+      </div>
+    );
+  }
 
-  const reportDate = new Date(payload!.ts).toLocaleString(undefined, {
+  const typeLabel =
+    payload.type === "photo" ? "Photo report" :
+    payload.type === "voice" ? "Voice report" : "Text report";
+
+  const reportDate = new Date(payload.ts).toLocaleString(undefined, {
     month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
   });
 
@@ -157,7 +262,19 @@ export default function ImportReport({ encoded }: { encoded: string | null }) {
       <div className="bg-white border border-slate-200 rounded-2xl px-4 py-4 space-y-3">
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold text-slate-900">{typeLabel}</p>
-          <span className="text-xs text-slate-400">{reportDate}</span>
+          <div className="flex items-center gap-2">
+            {isEncrypted && (
+              <span className="flex items-center gap-1 text-[10px] font-semibold text-teal-700 bg-teal-50 border border-teal-100 px-2 py-0.5 rounded-full">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+                  strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                Encrypted
+              </span>
+            )}
+            <span className="text-xs text-slate-400">{reportDate}</span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -165,14 +282,14 @@ export default function ImportReport({ encoded }: { encoded: string | null }) {
             <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
           </svg>
           <span className="font-mono">
-            {payload!.lat.toFixed(5)}, {payload!.lng.toFixed(5)}
+            {payload.lat.toFixed(5)}, {payload.lng.toFixed(5)}
           </span>
         </div>
 
-        {payload!.content && (
+        {payload.content && (
           <div className="bg-slate-50 rounded-xl px-3.5 py-3">
             <p className="text-sm text-slate-700 leading-relaxed italic">
-              &ldquo;{payload!.content}&rdquo;
+              &ldquo;{payload.content}&rdquo;
             </p>
           </div>
         )}
