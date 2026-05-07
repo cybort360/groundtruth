@@ -7,6 +7,7 @@
 
 import Database from "better-sqlite3";
 import path from "path";
+import fs from "fs";
 import type { Report, NormalizedSignal, AssessedEvent } from "@/types";
 
 // On Vercel (serverless), use /tmp which is writable. Locally use data/.
@@ -124,6 +125,43 @@ function initializeSchema() {
   try {
     database.exec(`ALTER TABLE events ADD COLUMN thinking_trace TEXT`);
   } catch { /* column already exists */ }
+
+  // Seed GDACS events from bundled JSON if the table is empty.
+  // This runs on every cold start on Vercel (ephemeral /tmp DB) so users
+  // always have the verified historical baseline without needing a manual sync.
+  const gdacsCount = (database
+    .prepare("SELECT COUNT(*) as n FROM gdacs_events")
+    .get() as { n: number }).n;
+
+  if (gdacsCount === 0) {
+    try {
+      const seedPath = path.join(process.cwd(), "data", "gdacs-seed.json");
+      const raw = fs.readFileSync(seedPath, "utf-8");
+      const events = JSON.parse(raw) as Array<Record<string, unknown>>;
+      const stmt = database.prepare(`
+        INSERT OR IGNORE INTO gdacs_events
+          (gdacs_id, event_type, latitude, longitude, country, alert_level, severity,
+           name, description, severity_text, from_date, to_date, fetched_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      const now = new Date().toISOString();
+      const insertAll = database.transaction((rows: Array<Record<string, unknown>>) => {
+        for (const e of rows) {
+          stmt.run(
+            e.gdacsId, e.eventType, e.latitude, e.longitude,
+            e.country, e.alertLevel, e.severity,
+            e.name, e.description, e.severityText,
+            e.fromDate, e.toDate, now,
+          );
+        }
+      });
+      insertAll(events);
+      console.log(`[db] Seeded ${events.length} GDACS events from bundled data.`);
+    } catch (err) {
+      // Non-fatal — app works without historical data, just less context for Gemma
+      console.warn("[db] GDACS seed skipped:", err);
+    }
+  }
 }
 
 // --- Report Operations ---
