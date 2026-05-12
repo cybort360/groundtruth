@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import LocationPickerLoader from "./LocationPickerLoader";
 import QRShare, { type QRPayload } from "./QRShare";
 import { useTranslations } from "@/lib/i18n";
+import { reverseGeocode } from "@/lib/geocode";
 
 type ReportMode = "photo" | "voice" | "text";
 
@@ -103,10 +104,15 @@ export default function ReportForm() {
     setLocation({ status: "acquiring" });
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setLocation({
-          status: "acquired",
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
+        const { latitude, longitude } = pos.coords;
+        setLocation({ status: "acquired", latitude, longitude });
+        // Resolve a human-readable name in the background — non-blocking
+        void reverseGeocode(latitude, longitude).then((name) => {
+          if (name) {
+            setLocation((prev) =>
+              prev.status === "acquired" ? { ...prev, placeName: name } : prev
+            );
+          }
         });
       },
       () => setLocation({ status: "failed" }),

@@ -8,6 +8,7 @@
 import { v4 as uuid } from "uuid";
 import { complete, chatWithImage } from "./gemma";
 import { NORMALIZER_SYSTEM_PROMPT, buildNormalizerPrompt } from "./prompts/normalizer";
+import { reverseGeocode } from "./geocode";
 import type { Report, NormalizedSignal, NormalizerResult } from "@/types";
 
 export async function normalizeReport(report: Report): Promise<NormalizedSignal> {
@@ -42,7 +43,9 @@ export async function normalizeReport(report: Report): Promise<NormalizedSignal>
   return {
     id: uuid(),
     reportId: report.id,
-    locationName: parsed.locationName || `Near ${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}`,
+    locationName: parsed.locationName && !parsed.locationName.startsWith("Near ")
+      ? parsed.locationName
+      : (await reverseGeocode(report.latitude, report.longitude)) ?? `Near ${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}`,
     latitude: report.latitude,
     longitude: report.longitude,
     claim: parsed.claim,

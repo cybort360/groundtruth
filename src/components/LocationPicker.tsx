@@ -26,28 +26,7 @@ const DEFAULT_LAT = 6.4541;
 const DEFAULT_LNG = 3.4218;
 const DEFAULT_ZOOM = 14;
 
-async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
-  try {
-    const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16`,
-      { headers: { "Accept-Language": "en" } }
-    );
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      display_name?: string;
-      address?: { road?: string; neighbourhood?: string; suburb?: string; city?: string };
-    };
-    // Prefer short form: road + suburb
-    const a = data.address;
-    if (a) {
-      const parts = [a.road, a.neighbourhood ?? a.suburb, a.city].filter(Boolean);
-      if (parts.length) return parts.slice(0, 2).join(", ");
-    }
-    return data.display_name?.split(",").slice(0, 2).join(",").trim() ?? null;
-  } catch {
-    return null;
-  }
-}
+import { reverseGeocode } from "@/lib/geocode";
 
 interface Props {
   initialLat?: number;
