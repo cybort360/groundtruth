@@ -378,29 +378,6 @@ data/
 
 ---
 
-## Hackathon Checklist
-
-- [x] Gemma 4 multimodal: image analysis in signal normalization
-- [x] Gemma 4 extended context: full signal cluster in one reasoning pass
-- [x] Gemma 4 native thinking mode: `<|think|>` seeded per cluster, trace stored + displayed
-- [x] Gemma 4 function calling: 4 registered tools (`geo_cluster`, `check_history`, `assess_risk`, `update_event`)
-- [x] Intelligent routing: local E4B for simple clusters, cloud 26B A4B (MoE) for high-complexity conflicts
-- [x] Runs 100% offline: Ollama edge deployment, no cloud dependency
-- [x] Solves a real problem: crisis situational awareness with conflicting information
-- [x] Transparent AI reasoning: every confidence score explained, thinking traces auditable
-- [x] Severity assessment: credibility-weighted signal scoring on a 5-level scale
-- [x] Real historical baseline: 259 GDACS (EU/UN) events across 3 years, queried per location
-- [x] Cross-cluster correlation: neighboring events boost each other's confidence
-- [x] Emergency rescue panel: regional numbers, GPS SMS, dispatcher guidance
-- [x] Localization: 10 languages, auto-detected, including Arabic RTL
-- [x] End-to-end encryption: AES-256-GCM + PBKDF2 PIN lock for QR/NFC payloads
-- [x] Low-bandwidth mode: auto-detected, hides map, preserves core function on 2G
-- [x] LAN mesh networking: peer-to-peer report sync for local server deployments
-- [x] QR / NFC report sharing: offline report transfer between any devices
-- [x] PWA: installs on any device, UI works fully offline
-
----
-
 ## License
 
 [Creative Commons Attribution 4.0 International (CC BY 4.0)](LICENSE)
