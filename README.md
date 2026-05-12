@@ -72,7 +72,7 @@ GroundTruth collects local reports — photos, voice notes, and text — and use
 1. **Collects multi-modal reports** — photos, voice notes, and text from anyone nearby
 2. **Extracts structured claims** — Gemma 4 parses each report into location, severity, and evidence type
 3. **Scores credibility** — each signal is weighted by evidence type, specificity, recency, and corroboration with nearby reports
-4. **Routes by complexity** — simple, consistent reports are handled locally by Gemma E4B; conflicting or dispersed reports are automatically escalated to Gemma 27B via Google AI
+4. **Routes by complexity** — simple, consistent reports are handled locally by Gemma E4B; conflicting or dispersed reports are automatically escalated to Gemma 4 26B A4B via Google AI
 5. **Resolves conflicts** — Gemma 4's step-by-step reasoning mode detects contradictions, weighs evidence, and produces a transparent chain-of-thought
 6. **Grounds assessments in real history** — `check_history()` queries 259 real GDACS (EU/UN) disaster alerts across 3 years, so Gemma can say "this area had 4 Orange flood alerts in the past 3 years" rather than reasoning blind
 7. **Correlates across clusters** — neighboring event clusters of the same type boost each other's confidence (up to +12%) when they corroborate the same picture
@@ -111,7 +111,7 @@ Credibility Scorer         ← Gemma 4: score recency, specificity, corroboratio
         ▼
 Complexity Router          ← deterministic: GPS spread, severity range, signal count
   ├── simple cluster  ──▶  Gemma E4B (Ollama, on-device)
-  └── complex cluster ──▶  Gemma 27B (Google AI API, escalated)
+  └── complex cluster ──▶  Gemma 4 26B A4B (Google AI API, escalated — MoE, ~4B active params)
         │
         ▼
 Reasoning Engine           ← Gemma 4 (thinking mode + function calling)
@@ -143,7 +143,7 @@ Dashboard
 Not every cluster needs the same model. GroundTruth assesses each signal cluster before sending it to an LLM:
 
 - **Simple clusters** (tight GPS spread, consistent severity, fewer than 5 signals) → Gemma E4B runs locally via Ollama. Fast, private, zero cost.
-- **Complex clusters** (3+ signals with GPS spread >200m, severity range ≥ 2, or 5+ signals) → automatically escalated to Gemma 27B via Google AI for deeper conflict resolution.
+- **Complex clusters** (3+ signals with GPS spread >200m, severity range ≥ 2, or 5+ signals) → automatically escalated to Gemma 4 26B A4B via Google AI for deeper conflict resolution. As a Mixture-of-Experts model, it activates only ~4B parameters per inference step — strong reasoning without proportional compute cost.
 
 Each event card shows which model tier assessed it: a teal **"Running offline"** badge or a violet **"Cloud-assisted"** badge.
 
@@ -365,7 +365,7 @@ data/
 | Framework | Next.js 14 (App Router) |
 | Language | TypeScript (strict) |
 | AI — local | Gemma 4 E4B via Ollama REST API |
-| AI — cloud | Gemma 27B via Google AI Studio API |
+| AI — cloud | Gemma 4 26B A4B (MoE) via Google AI Studio API |
 | Routing | Deterministic complexity classifier (haversine + severity heuristics) |
 | Database | SQLite via better-sqlite3 |
 | Historical data | GDACS (EU/UN) public disaster alert API — 259 real events |
@@ -384,7 +384,7 @@ data/
 - [x] Gemma 4 extended context — full signal cluster in one reasoning pass
 - [x] Gemma 4 native thinking mode — `<|think|>` seeded per cluster, trace stored + displayed
 - [x] Gemma 4 function calling — 4 registered tools (`geo_cluster`, `check_history`, `assess_risk`, `update_event`)
-- [x] Intelligent routing — local E4B for simple clusters, cloud 27B for high-complexity conflicts
+- [x] Intelligent routing — local E4B for simple clusters, cloud 26B A4B (MoE) for high-complexity conflicts
 - [x] Runs 100% offline — Ollama edge deployment, no cloud dependency
 - [x] Solves a real problem — crisis situational awareness with conflicting information
 - [x] Transparent AI reasoning — every confidence score explained, thinking traces auditable
