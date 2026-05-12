@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import LocationPickerLoader from "./LocationPickerLoader";
 import QRShare, { type QRPayload } from "./QRShare";
+import { useTranslations } from "@/lib/i18n";
 
 type ReportMode = "photo" | "voice" | "text";
 
@@ -90,6 +91,8 @@ export default function ReportForm() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [showQR, setShowQR] = useState(false);
   const [qrPayload, setQrPayload] = useState<QRPayload | null>(null);
+
+  const { t, locale } = useTranslations();
 
   // Called only when the user explicitly taps "Use my location"
   const requestLocation = useCallback(() => {
@@ -231,6 +234,7 @@ export default function ReportForm() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const body: Record<string, any> = {
         type: mode,
+        locale,
         latitude: coords.latitude,
         longitude: coords.longitude,
       };
@@ -316,7 +320,7 @@ export default function ReportForm() {
             </svg>
           </div>
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Report received</h2>
+            <h2 className="text-base font-semibold text-slate-900">{t.report.successTitle}</h2>
             {submitResult.signal.locationName && (
               <p className="text-sm text-slate-500 mt-0.5">{submitResult.signal.locationName}</p>
             )}
@@ -358,7 +362,7 @@ export default function ReportForm() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            <span className="font-medium">Gemma is analyzing your report in the background.</span>
+            <span className="font-medium">{t.report.successSubtitle}</span>
           </div>
           {/* Share via QR — only shown if we have coords */}
           {qrPayload && (
@@ -373,7 +377,7 @@ export default function ReportForm() {
                 <rect x="3" y="14" width="7" height="7" rx="1" />
                 <path d="M14 14h2v2h-2z" /><path d="M18 14h3" /><path d="M14 18v3" /><path d="M20 18v3" /><path d="M18 20h3" />
               </svg>
-              Share via QR
+              {t.report.shareQR}
             </button>
           )}
 
@@ -382,13 +386,13 @@ export default function ReportForm() {
               onClick={resetForm}
               className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-teal-600 text-white hover:bg-teal-700 transition-colors"
             >
-              Submit another
+              {t.report.submitAnother}
             </button>
             <a
               href="/"
               className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-colors text-center"
             >
-              View dashboard
+              {t.report.viewDashboard}
             </a>
           </div>
         </div>
@@ -440,7 +444,7 @@ export default function ReportForm() {
             }`}
           >
             {MODE_ICONS[m]}
-            {m.charAt(0).toUpperCase() + m.slice(1)}
+            {m === "photo" ? t.report.photoLabel : m === "voice" ? t.report.voiceLabel : t.report.textLabel}
           </button>
         ))}
       </div>
@@ -457,7 +461,7 @@ export default function ReportForm() {
                   <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                   <circle cx="12" cy="13" r="4" />
                 </svg>
-                <span className="text-xs font-semibold text-slate-600">Take photo</span>
+                <span className="text-xs font-semibold text-slate-600">{t.report.takePhoto}</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -475,7 +479,7 @@ export default function ReportForm() {
                   <circle cx="8.5" cy="8.5" r="1.5" />
                   <polyline points="21 15 16 10 5 21" />
                 </svg>
-                <span className="text-xs font-semibold text-slate-600">Choose from library</span>
+                <span className="text-xs font-semibold text-slate-600">{t.report.chooseFromLibrary}</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -503,7 +507,7 @@ export default function ReportForm() {
               }}
               className="text-xs text-rose-500 hover:text-rose-700 font-medium self-center"
             >
-              Remove photo
+              {t.report.remove}
             </button>
           )}
         </div>
@@ -603,7 +607,7 @@ export default function ReportForm() {
             rows={5}
             value={textContent}
             onChange={(e) => setTextContent(e.target.value)}
-            placeholder="Describe what you're seeing. Include location details, what's happening, and how severe it is."
+            placeholder={t.report.textPlaceholder}
             className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-900 placeholder-slate-400 resize-none focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
           />
         </div>
@@ -612,14 +616,14 @@ export default function ReportForm() {
       {/* Location section */}
       <div className="mb-5">
         <div className="flex items-center justify-between mb-1.5">
-          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Location</p>
+          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">{t.report.locationLabel}</p>
           {/* Allow re-picking location even after GPS lock */}
           {location.status === "acquired" && (
             <button
               onClick={() => setShowPicker(true)}
               className="text-[11px] font-semibold text-teal-600 hover:text-teal-700"
             >
-              Move pin
+              {t.report.movePin}
             </button>
           )}
         </div>
@@ -636,7 +640,7 @@ export default function ReportForm() {
                 <circle cx="12" cy="12" r="3" />
                 <path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" />
               </svg>
-              Use my location
+              {t.report.useMyLocation}
             </button>
             <button
               onClick={() => setShowPicker(true)}
@@ -647,7 +651,7 @@ export default function ReportForm() {
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                 <circle cx="12" cy="10" r="3" />
               </svg>
-              Pick on map
+              {t.report.pickOnMap}
             </button>
           </div>
         )}
@@ -659,7 +663,7 @@ export default function ReportForm() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            Acquiring GPS location…
+            {t.emergency.gpsAcquiring}
           </div>
         )}
 
@@ -757,10 +761,10 @@ export default function ReportForm() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            Analyzing report…
+            {t.report.submitting}
           </span>
         ) : (
-          "Submit Report"
+          t.report.submitButton
         )}
       </button>
     </div>

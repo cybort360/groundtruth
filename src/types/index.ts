@@ -28,6 +28,8 @@ export interface Report {
   longitude: number;
   submittedAt: string;
   submitterId?: string;
+  /** BCP 47 locale code from the reporter's device (e.g. "yo", "ha", "fr"). */
+  locale?: string;
 }
 
 export interface NormalizedSignal {

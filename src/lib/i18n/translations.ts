@@ -72,6 +72,15 @@ export interface Translations {
     textPlaceholder: string;
     photoLabel: string;
     voiceLabel: string;
+    takePhoto: string;
+    chooseFromLibrary: string;
+    remove: string;
+    useMyLocation: string;
+    pickOnMap: string;
+    movePin: string;
+    submitAnother: string;
+    viewDashboard: string;
+    locationLabel: string;
   };
   settings: {
     title: string;
@@ -133,6 +142,15 @@ const en: Translations = {
     textPlaceholder: "Describe what you see — water level, road conditions, number of people affected…",
     photoLabel: "Photo report",
     voiceLabel: "Voice report",
+    takePhoto: "Take photo",
+    chooseFromLibrary: "Choose from library",
+    remove: "Remove",
+    useMyLocation: "Use my location",
+    pickOnMap: "Pick on map",
+    movePin: "Move pin",
+    submitAnother: "Submit another",
+    viewDashboard: "View dashboard",
+    locationLabel: "Location",
   },
   settings: {
     title: "Settings",
@@ -194,6 +212,15 @@ const fr: Translations = {
     textPlaceholder: "Décrivez ce que vous voyez — niveau d'eau, état des routes, nombre de personnes affectées…",
     photoLabel: "Signalement photo",
     voiceLabel: "Signalement vocal",
+    takePhoto: "Prendre une photo",
+    chooseFromLibrary: "Choisir dans la galerie",
+    remove: "Supprimer",
+    useMyLocation: "Utiliser ma position",
+    pickOnMap: "Choisir sur la carte",
+    movePin: "Déplacer l'épingle",
+    submitAnother: "Soumettre un autre",
+    viewDashboard: "Voir le tableau de bord",
+    locationLabel: "Position",
   },
   settings: {
     title: "Paramètres",
@@ -255,6 +282,15 @@ const es: Translations = {
     textPlaceholder: "Describe lo que ves — nivel del agua, condición de las vías, número de personas afectadas…",
     photoLabel: "Reporte fotográfico",
     voiceLabel: "Reporte de voz",
+    takePhoto: "Tomar foto",
+    chooseFromLibrary: "Elegir de la galería",
+    remove: "Eliminar",
+    useMyLocation: "Usar mi ubicación",
+    pickOnMap: "Elegir en el mapa",
+    movePin: "Mover marcador",
+    submitAnother: "Enviar otro",
+    viewDashboard: "Ver el panel",
+    locationLabel: "Ubicación",
   },
   settings: {
     title: "Configuración",
@@ -316,6 +352,15 @@ const pt: Translations = {
     textPlaceholder: "Descreva o que vê — nível da água, condições das estradas, número de pessoas afetadas…",
     photoLabel: "Relatório fotográfico",
     voiceLabel: "Relatório de voz",
+    takePhoto: "Tirar foto",
+    chooseFromLibrary: "Escolher da galeria",
+    remove: "Remover",
+    useMyLocation: "Usar minha localização",
+    pickOnMap: "Escolher no mapa",
+    movePin: "Mover marcador",
+    submitAnother: "Enviar outro",
+    viewDashboard: "Ver painel",
+    locationLabel: "Localização",
   },
   settings: {
     title: "Configurações",
@@ -377,6 +422,15 @@ const ar: Translations = {
     textPlaceholder: "صِف ما تراه — مستوى المياه، حالة الطرق، عدد المتضررين…",
     photoLabel: "تقرير صوري",
     voiceLabel: "تقرير صوتي",
+    takePhoto: "التقط صورة",
+    chooseFromLibrary: "اختر من المكتبة",
+    remove: "إزالة",
+    useMyLocation: "استخدام موقعي",
+    pickOnMap: "اختر على الخريطة",
+    movePin: "تحريك الدبوس",
+    submitAnother: "إرسال آخر",
+    viewDashboard: "عرض لوحة التحكم",
+    locationLabel: "الموقع",
   },
   settings: {
     title: "الإعدادات",
@@ -438,6 +492,15 @@ const yo: Translations = {
     textPlaceholder: "Ṣàpèjúwe ohun tí o rí — ìpele omi, ipò ọ̀nà, iye ènìyàn tí ó kan…",
     photoLabel: "Ìjábọ̀ fọ́tò",
     voiceLabel: "Ìjábọ̀ ohun",
+    takePhoto: "Ya fọ́tò",
+    chooseFromLibrary: "Yan láti ìkójọpọ̀",
+    remove: "Yọ kúrò",
+    useMyLocation: "Lo ipò mi",
+    pickOnMap: "Yan lórí maapu",
+    movePin: "Gbé àmì",
+    submitAnother: "Fi ìjábọ̀ mìíràn sílẹ̀",
+    viewDashboard: "Wo ìgbàpadà",
+    locationLabel: "Ipò",
   },
   settings: {
     title: "Ètò",
@@ -499,6 +562,15 @@ const ha: Translations = {
     textPlaceholder: "Bayyana abin da ka gani — matakin ruwa, halin hanya, yawan mutanen da abin ya shafa…",
     photoLabel: "Rahoto na hoto",
     voiceLabel: "Rahoto na murya",
+    takePhoto: "Ɗauki hoto",
+    chooseFromLibrary: "Zaɓi daga ɗakin hoto",
+    remove: "Cire",
+    useMyLocation: "Yi amfani da wurina",
+    pickOnMap: "Zaɓi a taswira",
+    movePin: "Matsa karafuni",
+    submitAnother: "Aika wani",
+    viewDashboard: "Duba allon",
+    locationLabel: "Wuri",
   },
   settings: {
     title: "Saiti",
@@ -560,6 +632,15 @@ const hi: Translations = {
     textPlaceholder: "जो देखते हैं उसका वर्णन करें — जल स्तर, सड़क की स्थिति, प्रभावित लोगों की संख्या…",
     photoLabel: "फोटो रिपोर्ट",
     voiceLabel: "वॉइस रिपोर्ट",
+    takePhoto: "फ़ोटो लें",
+    chooseFromLibrary: "गैलरी से चुनें",
+    remove: "हटाएं",
+    useMyLocation: "मेरी लोकेशन उपयोग करें",
+    pickOnMap: "नक्शे पर चुनें",
+    movePin: "पिन हटाएं",
+    submitAnother: "और सबमिट करें",
+    viewDashboard: "डैशबोर्ड देखें",
+    locationLabel: "स्थान",
   },
   settings: {
     title: "सेटिंग्स",
@@ -621,6 +702,15 @@ const sw: Translations = {
     textPlaceholder: "Elezea unachokiona — kina cha maji, hali ya barabara, idadi ya watu walioathirika…",
     photoLabel: "Ripoti ya picha",
     voiceLabel: "Ripoti ya sauti",
+    takePhoto: "Piga picha",
+    chooseFromLibrary: "Chagua kutoka galeria",
+    remove: "Ondoa",
+    useMyLocation: "Tumia eneo langu",
+    pickOnMap: "Chagua kwenye ramani",
+    movePin: "Sogeza pini",
+    submitAnother: "Tuma nyingine",
+    viewDashboard: "Tazama dashibodi",
+    locationLabel: "Eneo",
   },
   settings: {
     title: "Mipangilio",
@@ -682,6 +772,15 @@ const id: Translations = {
     textPlaceholder: "Jelaskan yang Anda lihat — ketinggian air, kondisi jalan, jumlah orang yang terdampak…",
     photoLabel: "Laporan foto",
     voiceLabel: "Laporan suara",
+    takePhoto: "Ambil foto",
+    chooseFromLibrary: "Pilih dari galeri",
+    remove: "Hapus",
+    useMyLocation: "Gunakan lokasi saya",
+    pickOnMap: "Pilih di peta",
+    movePin: "Pindah pin",
+    submitAnother: "Kirim lagi",
+    viewDashboard: "Lihat dasbor",
+    locationLabel: "Lokasi",
   },
   settings: {
     title: "Pengaturan",

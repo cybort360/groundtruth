@@ -19,7 +19,7 @@ function detectLocale(): LocaleCode {
 }
 
 /** Read stored preference, fall back to browser detection */
-function resolveLocale(): LocaleCode {
+export function resolveLocale(): LocaleCode {
   try {
     const stored = localStorage.getItem(STORAGE_KEY) as LocaleCode | null;
     if (stored && translations[stored]) return stored;

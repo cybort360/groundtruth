@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
       longitude: body.longitude,
       submittedAt: new Date().toISOString(),
       submitterId: body.submitterId || undefined,
+      locale: typeof body.locale === "string" ? body.locale : undefined,
     };
 
     // 1. Store raw report

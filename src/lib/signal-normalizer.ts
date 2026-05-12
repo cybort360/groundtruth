@@ -17,6 +17,7 @@ export async function normalizeReport(report: Report): Promise<NormalizedSignal>
     latitude: report.latitude,
     longitude: report.longitude,
     submittedAt: report.submittedAt,
+    locale: report.locale,
   });
 
   let responseText: string;

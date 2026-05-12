@@ -5,7 +5,16 @@
  * a structured signal with consistent fields.
  */
 
+// Maps locale codes to full language names for the normalizer prompt.
+const LOCALE_LANGUAGE_NAMES: Record<string, string> = {
+  en: "English", fr: "French", es: "Spanish", pt: "Portuguese",
+  ar: "Arabic", yo: "Yoruba", ha: "Hausa", hi: "Hindi",
+  sw: "Swahili", id: "Indonesian",
+};
+
 export const NORMALIZER_SYSTEM_PROMPT = `You are a signal extraction system for GroundTruth, a crisis situational awareness tool that works anywhere in the world and for any type of hazard or emergency — floods, earthquakes, wildfires, power outages, road closures, structural damage, gas leaks, landslides, tsunamis, tropical storms, avalanches, volcanic activity, and more.
+
+Reports may be submitted in any language. Extract all information regardless of the language the reporter used. When a reporter's preferred language is specified, write the "claim" and "details" fields in that language if you can do so fluently; otherwise use English.
 
 Your job is to take a raw report (which may include an image, audio transcription, or text) and extract structured information.
 
@@ -65,11 +74,17 @@ export function buildNormalizerPrompt(report: {
   latitude?: number;
   longitude?: number;
   submittedAt: string;
+  locale?: string;
 }): string {
   const parts: string[] = [];
 
   parts.push(`Report type: ${report.type}`);
   parts.push(`Submitted at: ${report.submittedAt}`);
+
+  if (report.locale) {
+    const langName = LOCALE_LANGUAGE_NAMES[report.locale] ?? report.locale;
+    parts.push(`Reporter's language: ${langName} (${report.locale}). Write the "claim" and "details" fields in ${langName} if you can; use English as a fallback.`);
+  }
 
   if (report.latitude && report.longitude) {
     parts.push(`GPS coordinates: ${report.latitude}, ${report.longitude}`);
