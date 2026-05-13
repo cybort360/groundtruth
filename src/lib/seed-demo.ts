@@ -18,6 +18,7 @@ import {
   insertSignal,
   upsertEvent,
   linkSignalToEvent,
+  setEventThinkingTrace,
 } from "./db";
 import { normalizeReport } from "./signal-normalizer";
 import { scoreCredibility } from "./credibility-scorer";
@@ -331,7 +332,7 @@ function seedFallback(): void {
   console.log("[seed]   Inserting event: Severe flooding - Lekki-Epe Expressway underpass");
   upsertEvent({
     id: event1Id,
-    title: "Severe flooding - Lekki-Epe Expressway underpass",
+    title: "Severe flooding — Lekki-Epe Expressway underpass",
     description:
       "Multiple reports confirm severe flooding at the Lekki-Epe underpass. Sensor data validates visual evidence.",
     eventType: "flooding",
@@ -341,13 +342,39 @@ function seedFallback(): void {
     confidence: 0.88,
     status: "active",
     reasoningChain:
-      "3 of 4 reports indicate significant flooding at the Lekki-Epe underpass. Signal D ('barely any water', text-only) contradicts photo and sensor evidence and is likely referring to a different section. Signal E (photo: waist-deep water with stranded vehicles) is the strongest visual evidence. Sensor data (Signal G) independently confirms 45cm water depth. Signal C (voice: vehicles turning back) corroborates. Signal D is downweighted due to low credibility score (0.30) and lack of photo evidence. Assessment: underpass is impassable. Confidence: 88%.",
+      `Severe flooding — Lekki-Epe Expressway underpass — 88%
+
+Evidence for: photo (credibility 88%): waist-deep flooding with multiple vehicles stranded; sensor (credibility 92%): 45cm water depth confirmed at underpass; audio (credibility 72%): road under bridge completely flooded, vehicles turning back
+Evidence against: text (credibility 30%): road passable with minimal water — likely refers to a different lane or was submitted before conditions worsened
+Resolution: Signal D (text-only, credibility 0.30) directly contradicts three higher-credibility signals. The sensor independently confirms 45cm depth at the same coordinates, corroborating the photo. Signal D is dismissed — one low-credibility text report cannot override sensor and photo evidence. The underpass is impassable.
+Trend: Worsening — reports escalate from ankle-deep (Signal B, t-108 min) to waist-deep (Signal E, t-68 min); sensor confirms 45cm at t-42 min with no improvement signal
+Recommendation: Avoid the underpass entirely. Use alternative routes — Lekki-Epe Expressway inland sections or Ozumba Mbadiwe Avenue. Do not attempt to drive through standing water of unknown depth.`,
     signalCount: event1Signals.length,
     firstReported: reports[2].submittedAt,
     lastUpdated: reports[6].submittedAt,
     signals: [],
     conflicts: [],
   });
+
+  setEventThinkingTrace(event1Id,
+    `SIGNAL INVENTORY
+Signal C (audio, credibility 0.72): Road under bridge completely flooded, vehicles turning back. Firsthand. t-95 min.
+Signal D (text, credibility 0.30): Road passable with minimal water. Firsthand. t-82 min. CONTRADICTS Signal C.
+Signal E (photo, credibility 0.88): Waist-deep flooding, multiple vehicles stranded. Firsthand. t-68 min. Strong visual evidence.
+Signal G (sensor, credibility 0.92): Water level sensor reads 45cm at underpass. Objective measurement. t-42 min.
+
+EVIDENCE HIERARCHY
+Sensor (G, 0.92) > Photo (E, 0.88) > Audio (C, 0.72) > Text (D, 0.30)
+
+CONTRADICTION ANALYSIS
+Signal D contradicts C, E, and G. Three explanations possible: (1) D used a different lane or bypass; (2) D was submitted 13 minutes before conditions worsened significantly; (3) D is low-reliability (score 0.30 confirms). Three high-credibility signals agree — D is dismissed.
+
+CONFIDENCE CALIBRATION
+Sensor and photo agree on severity from independent vantage points. Voice corroborates. Only one low-credibility text report contradicts. Confidence: 88% — held below 90% because sensor and photo are not co-located at the exact same point.
+
+HISTORICAL PLAUSIBILITY
+The Lekki-Epe Expressway underpass is a documented flood-prone location during Lagos rainy season. Risk profile fully consistent with this assessment. Confidence not adjusted further — already captured by the strong direct evidence.`
+  );
 
   for (const sig of event1Signals) {
     linkSignalToEvent(event1Id, sig.id);
@@ -364,7 +391,7 @@ function seedFallback(): void {
   console.log("[seed]   Inserting event: Moderate flooding - Admiralty Way");
   upsertEvent({
     id: event2Id,
-    title: "Moderate flooding - Admiralty Way",
+    title: "Moderate flooding — Admiralty Way",
     description:
       "Ankle-deep flooding reported on Admiralty Way; most recent voice report indicates water is receding.",
     eventType: "flooding",
@@ -374,13 +401,38 @@ function seedFallback(): void {
     confidence: 0.62,
     status: "uncertain",
     reasoningChain:
-      "Initial photo (Signal B) showed ankle-deep water on Admiralty Way. Most recent voice report (Signal F) indicates water is receding and vehicles are moving. Early text report (Signal A) confirms heavy rain onset. Conditions appear to be improving but flooding is ongoing. Moderate confidence due to improving trend and single photo data point. Assessment: proceed with caution, conditions improving. Confidence: 62%.",
+      `Moderate flooding — Admiralty Way — 62%
+
+Evidence for: photo (credibility 65%): ankle-deep water on street surface, vehicles moving slowly; text (credibility 45%): heavy rain started, roads getting wet
+Evidence against: audio (credibility 70%): water receding, vehicles beginning to move — most recent report indicates improving conditions
+Resolution: The most recent signal (F, voice, t-55 min) post-dates the photo (B, t-108 min) by 53 minutes and indicates improvement. Conditions appear to be actively receding. Confidence is moderate because flooding has not fully resolved and only one photo data point confirmed the peak depth.
+Trend: Improving — water level receding based on most recent voice report; situation not yet resolved
+Recommendation: Proceed with caution on Admiralty Way. If water has not cleared within 30 minutes, use side streets. Avoid the road if water is above ankle depth.`,
     signalCount: event2Signals.length,
     firstReported: reports[0].submittedAt,
     lastUpdated: reports[5].submittedAt,
     signals: [],
     conflicts: [],
   });
+
+  setEventThinkingTrace(event2Id,
+    `SIGNAL INVENTORY
+Signal A (text, credibility 0.45): Heavy rain started, roads getting wet. Firsthand. t-120 min. Early-stage report.
+Signal B (photo, credibility 0.65): Ankle-deep water on street, traffic slowing. Firsthand. t-108 min. Visual confirmation.
+Signal F (audio, credibility 0.70): Water receding, vehicles beginning to move. Firsthand. t-55 min. Most recent report.
+
+EVIDENCE HIERARCHY
+Audio (F, 0.70) > Photo (B, 0.65) > Text (A, 0.45)
+
+CONTRADICTION ANALYSIS
+No direct contradiction — signals form a timeline. A (onset) → B (flooding confirmed) → F (improving). The apparent tension between B (flooding) and F (receding) reflects a genuine change in conditions over 53 minutes, not conflicting evidence.
+
+CONFIDENCE CALIBRATION
+Three signals tell a coherent story. The most recent report (F) is the best indicator of current conditions. Single photo data point limits confidence — no sensor confirmation. Confidence: 62% — situation improving but not resolved.
+
+HISTORICAL PLAUSIBILITY
+Admiralty Way is a known drainage route in Lekki Phase 1. Moderate flooding during heavy rain is plausible. Receding within 1-2 hours is consistent with known drainage patterns in this area.`
+  );
 
   for (const sig of event2Signals) {
     linkSignalToEvent(event2Id, sig.id);

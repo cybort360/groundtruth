@@ -21,6 +21,11 @@ export async function normalizeReport(report: Report): Promise<NormalizedSignal>
     locale: report.locale,
   });
 
+  // Kick off reverse geocoding in parallel with the LLM call.
+  // Nominatim has a 4-second timeout; running it concurrently means it resolves
+  // (or times out gracefully) while the model is still inferring — no extra latency.
+  const geocodePromise = reverseGeocode(report.latitude, report.longitude);
+
   let responseText: string;
 
   if (report.type === "photo" && report.imageBase64) {
@@ -40,12 +45,15 @@ export async function normalizeReport(report: Report): Promise<NormalizedSignal>
   // Parse JSON response
   const parsed = parseJsonResponse<NormalizerResult>(responseText);
 
+  // By now the geocode has either resolved or timed out — no extra wait.
+  const geocodedName = await geocodePromise;
+
   return {
     id: uuid(),
     reportId: report.id,
     locationName: parsed.locationName && !parsed.locationName.startsWith("Near ")
       ? parsed.locationName
-      : (await reverseGeocode(report.latitude, report.longitude)) ?? `Near ${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}`,
+      : geocodedName ?? `Near ${report.latitude.toFixed(4)}, ${report.longitude.toFixed(4)}`,
     latitude: report.latitude,
     longitude: report.longitude,
     claim: parsed.claim,

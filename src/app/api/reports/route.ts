@@ -22,41 +22,43 @@ export async function POST(request: NextRequest) {
       locale: typeof body.locale === "string" ? body.locale : undefined,
     };
 
-    // 1. Store raw report
+    // Persist the raw report immediately so the client gets instant feedback.
     insertReport(report);
 
-    // 2. Normalize: extract structured signal
-    const signal = await normalizeReport(report);
+    // AI processing (normalize + credibility score) runs in the background.
+    // The client does not wait for this — it shows a confirmation right away.
+    void processReportAsync(report);
 
-    // 3. Score credibility
-    const credibility = await scoreCredibility(signal);
-    signal.credibilityScore = credibility.overallScore;
-    signal.credibilityReasoning = credibility.reasoning;
-
-    // 4. Store normalized signal
-    insertSignal(signal);
-
-    // 5. Broadcast to mesh peers (best-effort, non-blocking)
-    void import("@/lib/mesh/discovery").then(({ broadcastSignalToPeers }) => {
-      void broadcastSignalToPeers(signal.id, signal as unknown as Record<string, unknown>);
-    }).catch(() => {/* mesh not running — ignore */});
-
-    return NextResponse.json({
-      reportId: report.id,
-      signal: {
-        id: signal.id,
-        locationName: signal.locationName,
-        claim: signal.claim,
-        evidenceType: signal.evidenceType,
-        severity: signal.severity,
-        credibilityScore: signal.credibilityScore,
-        credibilityReasoning: signal.credibilityReasoning,
-      },
-    });
+    return NextResponse.json({ reportId: report.id });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("Report submission error:", message);
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/** Normalize and score a report in the background after the HTTP response is sent. */
+async function processReportAsync(report: Report): Promise<void> {
+  try {
+    const signal = await normalizeReport(report);
+
+    try {
+      const credibility = await scoreCredibility(signal);
+      signal.credibilityScore = credibility.overallScore;
+      signal.credibilityReasoning = credibility.reasoning;
+    } catch (err) {
+      console.warn("[reports] credibility scoring failed, using default:", err);
+      signal.credibilityScore = 0.5;
+      signal.credibilityReasoning = "Credibility scoring unavailable.";
+    }
+
+    insertSignal(signal);
+
+    void import("@/lib/mesh/discovery").then(({ broadcastSignalToPeers }) => {
+      void broadcastSignalToPeers(signal.id, signal as unknown as Record<string, unknown>);
+    }).catch(() => { /* mesh not running */ });
+  } catch (err) {
+    console.error("[reports] background processing failed:", err);
   }
 }
 

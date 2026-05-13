@@ -17,7 +17,7 @@
 import { agenticLoop } from "./gemma";
 import { executeTool } from "./tools";
 import { geoCluster } from "./tools/geo-cluster";
-import { getAllSignals, getActiveEvents, getEventSignals, getEventsNear, updateEventConfidence, linkSignalToEvent, setEventAssessedBy, setEventThinkingTrace } from "./db";
+import { getUnlinkedSignals, getActiveEvents, getEventSignals, getEventsNear, updateEventConfidence, linkSignalToEvent, setEventAssessedBy, setEventThinkingTrace } from "./db";
 import {
   CLUSTER_ASSESSMENT_SYSTEM_PROMPT,
   CLUSTER_ASSESSMENT_TOOLS,
@@ -36,7 +36,9 @@ const MAX_ITERATIONS_PER_CLUSTER = 8;
  * This is the main entry point called by the /api/reasoning route.
  */
 export async function runReasoning(): Promise<ReasoningOutput> {
-  const signals = getAllSignals();
+  // Only process signals not yet linked to an event — avoids re-creating events
+  // for signals that were already analyzed in a previous Analyze run.
+  const signals = getUnlinkedSignals();
 
   if (signals.length === 0) {
     return {
@@ -96,12 +98,6 @@ export async function runReasoning(): Promise<ReasoningOutput> {
         role: "user",
         content: buildClusterPrompt(cluster, i, clusterResult.totalClusters),
       },
-      // Pre-fill the assistant turn with Gemma 4's thinking token so the model
-      // enters its chain-of-thought mode before calling any tools.
-      {
-        role: "assistant",
-        content: "<|think|>\nLet me carefully analyze the signals in this cluster.\n",
-      },
     ];
 
     try {
@@ -160,9 +156,36 @@ export async function runReasoning(): Promise<ReasoningOutput> {
         }
       }
     } catch (err) {
-      console.error(`[reasoning] Cluster ${i + 1} failed:`, err);
-      const fallbackId = await fallbackPersist(cluster, i);
-      setEventAssessedBy(fallbackId, "local-fallback");
+      const errMsg = err instanceof Error ? err.message : String(err);
+      console.error(`[reasoning] Cluster ${i + 1} failed:`, errMsg);
+
+      // Tool-calling failed (common with small models that don't support it well).
+      // Try a simpler single-turn structured JSON extraction instead.
+      let recoveredId: string | null = null;
+      if (errMsg.includes("400") || errMsg.includes("tool")) {
+        console.log(`[reasoning] Cluster ${i + 1}: retrying with structured JSON extraction...`);
+        try {
+          recoveredId = await assessClusterStructured(cluster, backend);
+          if (recoveredId) {
+            setEventAssessedBy(recoveredId, routingLabel);
+            for (const signal of cluster.signals) {
+              linkSignalToEvent(recoveredId, signal.id);
+            }
+            console.log(`[reasoning] Cluster ${i + 1}: structured extraction succeeded → event ${recoveredId}`);
+          }
+        } catch (innerErr) {
+          console.error(`[reasoning] Cluster ${i + 1}: structured extraction also failed:`, innerErr);
+        }
+      }
+
+      if (!recoveredId) {
+        // Final fallback: heuristic assessment from signal metadata
+        const fallbackId = await fallbackPersist(cluster, i);
+        setEventAssessedBy(fallbackId, "local-fallback");
+        for (const signal of cluster.signals) {
+          linkSignalToEvent(fallbackId, signal.id);
+        }
+      }
     }
   }
 
@@ -234,6 +257,86 @@ export async function runReasoning(): Promise<ReasoningOutput> {
     conflictsDetected: totalConflicts,
     thinkingTrace: allThinkingTraces.join("\n\n") || undefined,
   };
+}
+
+/**
+ * Structured JSON extraction: ask the model to output a plain JSON assessment
+ * without using tool calling. Works with smaller models (e.g. E4B / gemma3:4b)
+ * that don't reliably produce valid tool-call JSON.
+ * Returns the new event ID on success, or null on failure.
+ */
+async function assessClusterStructured(
+  cluster: { centroidLat: number; centroidLng: number; signals: Array<{ id: string; claim: string; evidenceType: string; credibilityScore: number; timestamp: string; locationName: string }> },
+  backend: import("./gemma-backends/types").GemmaBackend,
+): Promise<string | null> {
+  const { centroidLat, centroidLng, signals } = cluster;
+
+  const signalLines = signals.map((s, idx) =>
+    `  Signal ${idx + 1}: [${s.evidenceType}] "${s.claim}" — credibility ${s.credibilityScore.toFixed(2)}, at ${s.locationName}`
+  ).join("\n");
+
+  // Derive a location hint from the signal claims rather than raw coordinates
+  const locationHint = signals[0]?.locationName && !signals[0].locationName.startsWith("Near ")
+    ? signals[0].locationName
+    : signals.map(s => s.claim).join(" ").slice(0, 120);
+
+  const prompt = `You are assessing crisis reports. Analyze the signals below and output a single JSON object. No markdown, no explanation — raw JSON only.
+
+Signals:
+${signalLines}
+
+RULES:
+- "title" must describe WHAT happened and WHERE using plain words from the report. NEVER use coordinates like "6.4633" in the title. Derive the location from the report content.
+- "event_type" must match the incident: building/structure collapse = structural_damage, flooding = flooding, fire = wildfire, road blocked = road_closure, etc.
+- Location context from reports: "${locationHint}"
+
+Output exactly this JSON (fill reasoning_chain in the format shown):
+{
+  "title": "<what happened — where, e.g. Building collapse — Oshodi terminal>",
+  "event_type": "<flooding|earthquake|wildfire|landslide|tsunami|tropical_storm|road_closure|power_outage|structural_damage|gas_leak|avalanche|volcanic_activity|other>",
+  "confidence": <0.1–0.95, based on evidence strength>,
+  "status": "<active|uncertain|resolved>",
+  "reasoning_chain": "<TITLE> — <CONFIDENCE>%\\n\\nEvidence for: <signals supporting this; separated by semicolons>\\nEvidence against: <contradicting signals, or none>\\nResolution: <how you weighted the evidence>\\nTrend: <getting worse|improving|stable>\\nRecommendation: <specific actionable guidance>"
+}`;
+
+  const res = await backend.chat(
+    [{ role: "user", content: prompt }],
+    { temperature: 0.2, thinking: true }
+  );
+
+  let text = res.content.trim();
+  // Strip markdown fences if present
+  if (text.startsWith("```")) text = text.replace(/^```[a-z]*\n?/, "").replace(/```$/, "").trim();
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    // Sometimes the model wraps in extra text — try to extract just the JSON object
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try { parsed = JSON.parse(match[0]) as Record<string, unknown>; } catch { return null; }
+  }
+
+  const result = await executeTool("update_event", {
+    title: typeof parsed.title === "string" && !parsed.title.match(/\d+\.\d{3,}/)
+      ? parsed.title
+      : `Incident — ${signals[0]?.claim?.slice(0, 60) ?? signals[0]?.locationName ?? "Unknown location"}`,
+    event_type: typeof parsed.event_type === "string" ? parsed.event_type : "other",
+    latitude: centroidLat,
+    longitude: centroidLng,
+    radius_meters: 500,
+    confidence: typeof parsed.confidence === "number" ? Math.min(0.95, Math.max(0.1, parsed.confidence)) : 0.5,
+    status: typeof parsed.status === "string" ? parsed.status : "uncertain",
+    reasoning_chain: typeof parsed.reasoning_chain === "string" ? parsed.reasoning_chain : "AI-assessed via structured extraction.",
+  }) as { eventId?: string };
+
+  // Store the thinking trace if the model produced one
+  if (result.eventId && res.thinking) {
+    setEventThinkingTrace(result.eventId, res.thinking);
+  }
+
+  return result.eventId ?? null;
 }
 
 /**

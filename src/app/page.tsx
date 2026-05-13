@@ -613,7 +613,9 @@ export default function DashboardPage() {
                 )}
               </button>
 
-              {ALL_EVENT_TYPES.map(({ value, label }) => {
+              {[...ALL_EVENT_TYPES]
+                .sort((a, b) => (typeCounts[b.value] ?? 0) - (typeCounts[a.value] ?? 0))
+                .map(({ value, label }) => {
                 const count   = typeCounts[value] ?? 0;
                 const active  = filterType === value;
                 const hasData = count > 0;

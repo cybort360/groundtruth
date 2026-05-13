@@ -116,8 +116,14 @@ export function initMeshDiscovery(appHttpPort: number): void {
           version: "0.1",
         } satisfies AnnouncePacket)
       );
+      // LAN broadcast — reaches other devices on the same network
       socket.send(payload, DISCOVERY_UDP_PORT, "255.255.255.255", (err) => {
         if (err) console.warn(`[mesh] Broadcast failed: ${err.message}`);
+      });
+      // Loopback — macOS doesn't reflect broadcast packets back to local processes,
+      // so we send explicitly to 127.0.0.1 to discover other instances on the same machine.
+      socket.send(payload, DISCOVERY_UDP_PORT, "127.0.0.1", (err) => {
+        if (err) console.warn(`[mesh] Loopback send failed: ${err.message}`);
       });
     };
 

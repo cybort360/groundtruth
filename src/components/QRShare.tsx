@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import QRCode from "qrcode";
-import { encryptPayload, cryptoAvailable } from "@/lib/crypto";
+import { encryptPayload } from "@/lib/crypto";
 
 export interface QRPayload {
   v: 1;
@@ -32,11 +32,12 @@ export default function QRShare({ payload, onClose }: Props) {
   const [qrData, setQrData]         = useState<string | null>(null);
   // nfcData holds what gets written to NFC (JSON string, plain or encrypted)
   const [nfcData, setNfcData]       = useState<string>("");
-  const [canEncrypt, setCanEncrypt] = useState(false);
+  // Always show the PIN toggle — the encrypt/decrypt functions handle
+  // unavailable crypto gracefully by falling back to plain QR.
+  const canEncrypt = true;
 
   useEffect(() => {
     setCanShare(typeof navigator.share === "function");
-    setCanEncrypt(cryptoAvailable());
     setNfcAvail("NDEFReader" in window);
   }, []);
 

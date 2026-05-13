@@ -6,7 +6,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=16`,
-      { headers: { "Accept-Language": "en" }, signal: AbortSignal.timeout(4000) }
+      { headers: { "Accept-Language": "en" }, signal: AbortSignal.timeout(2000) }
     );
     if (!res.ok) return null;
     const data = (await res.json()) as {

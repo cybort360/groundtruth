@@ -222,6 +222,17 @@ export function getAllSignals(): NormalizedSignal[] {
   return rows.map(mapSignal);
 }
 
+/** Only signals not yet linked to any event — used by the reasoning engine to avoid re-processing. */
+export function getUnlinkedSignals(): NormalizedSignal[] {
+  const database = getDb();
+  const rows = database.prepare(`
+    SELECT * FROM signals
+    WHERE id NOT IN (SELECT DISTINCT signal_id FROM event_signals)
+    ORDER BY timestamp DESC
+  `).all() as Record<string, unknown>[];
+  return rows.map(mapSignal);
+}
+
 export function getSignalsNear(lat: number, lng: number, radiusKm: number = 5): NormalizedSignal[] {
   const database = getDb();
   // Approximate bounding box (1 degree ~ 111km)

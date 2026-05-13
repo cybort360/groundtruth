@@ -10,15 +10,10 @@ type ReportMode = "photo" | "voice" | "text";
 
 interface SubmitResult {
   reportId: string;
-  signal: {
-    id: string;
-    locationName: string;
-    claim: string;
-    evidenceType: string;
-    severity: number;
-    credibilityScore: number;
-    credibilityReasoning: string;
-  };
+  // Snapshot of form data captured at submission time — no AI processing needed
+  locationName: string | null;
+  rawContent: string | null;
+  mode: ReportMode;
 }
 
 interface LocationState {
@@ -253,6 +248,12 @@ export default function ReportForm() {
         body.content = textContent;
       }
 
+      // Snapshot the form state before the fetch — used for the success screen.
+      const locationName = location.status === "acquired"
+        ? (location.placeName ?? null)
+        : null;
+      const rawContent = mode === "text" ? textContent.trim() : null;
+
       const res = await fetch("/api/reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -264,24 +265,18 @@ export default function ReportForm() {
         throw new Error(errData.error ?? `Server error: ${res.status}`);
       }
 
-      const data = (await res.json()) as SubmitResult;
-      setSubmitResult(data);
+      const data = (await res.json()) as { reportId: string };
 
-      // Build QR payload for offline sharing — coords already resolved above
+      setSubmitResult({ reportId: data.reportId, locationName, rawContent, mode });
+
+      // Build QR payload for offline sharing
       setQrPayload({
         v: 1,
         type: mode,
         lat: coords.latitude,
         lng: coords.longitude,
         ts: Date.now(),
-        content: mode === "text" ? textContent.trim() : (data.signal.claim ?? undefined),
-      });
-
-      // Fire reasoning engine in the background — don't await so the
-      // confirmation screen appears immediately. The dashboard will pick
-      // up the new event on its next 30-second poll (or manual Analyze).
-      void fetch("/api/reasoning", { method: "POST" }).catch(() => {
-        // Reasoning failure is non-fatal — the signal is already persisted
+        content: mode === "text" ? textContent.trim() : undefined,
       });
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Submission failed. Please try again.");
@@ -327,48 +322,22 @@ export default function ReportForm() {
           </div>
           <div>
             <h2 className="text-base font-semibold text-slate-900">{t.report.successTitle}</h2>
-            {submitResult.signal.locationName && (
-              <p className="text-sm text-slate-500 mt-0.5">{submitResult.signal.locationName}</p>
+            {submitResult.locationName && (
+              <p className="text-sm text-slate-500 mt-0.5">{submitResult.locationName}</p>
             )}
           </div>
-          {submitResult.signal.claim && (
+          {submitResult.rawContent && (
             <div className="bg-slate-50 rounded-xl px-4 py-3 w-full text-left">
-              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">AI extracted claim</p>
-              <p className="text-sm text-slate-700 leading-relaxed italic">&ldquo;{submitResult.signal.claim}&rdquo;</p>
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Your report</p>
+              <p className="text-sm text-slate-700 leading-relaxed italic">&ldquo;{submitResult.rawContent}&rdquo;</p>
             </div>
           )}
-          <div className="flex gap-2 w-full">
-            <div className="flex-1 flex items-center justify-between bg-teal-50 border border-teal-100 rounded-xl px-3.5 py-2.5">
-              <span className="text-xs font-medium text-teal-700">Credibility</span>
-              <span className="text-sm font-bold text-teal-700">
-                {Math.round(submitResult.signal.credibilityScore * 100)}%
-              </span>
-            </div>
-            <div className={`flex-1 flex items-center justify-between rounded-xl px-3.5 py-2.5 border ${
-              submitResult.signal.severity >= 4 ? "bg-rose-50 border-rose-100" :
-              submitResult.signal.severity === 3 ? "bg-amber-50 border-amber-100" :
-              "bg-slate-50 border-slate-100"
-            }`}>
-              <span className={`text-xs font-medium ${
-                submitResult.signal.severity >= 4 ? "text-rose-700" :
-                submitResult.signal.severity === 3 ? "text-amber-700" :
-                "text-slate-600"
-              }`}>Severity</span>
-              <span className={`text-sm font-bold ${
-                submitResult.signal.severity >= 4 ? "text-rose-700" :
-                submitResult.signal.severity === 3 ? "text-amber-700" :
-                "text-slate-700"
-              }`}>
-                {submitResult.signal.severity}/5
-              </span>
-            </div>
-          </div>
           <div className="flex items-center gap-2 text-xs text-teal-600 bg-teal-50 border border-teal-100 rounded-xl px-3.5 py-2.5 w-full">
             <svg className="animate-spin h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            <span className="font-medium">{t.report.successSubtitle}</span>
+            <span className="font-medium">AI analysis running in background…</span>
           </div>
           {/* Share via QR — only shown if we have coords */}
           {qrPayload && (

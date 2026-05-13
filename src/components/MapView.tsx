@@ -181,12 +181,22 @@ export default function MapView({ events, onEventClick, centerOverride }: MapVie
     <MapContainer
       center={defaultCenter}
       zoom={13}
-      style={{ height: "100%", width: "100%" }}
+      // #e8e4de matches OSM's unloaded tile background — offline tiles blend in
+      // instead of showing broken-image icons on a white square.
+      style={{ height: "100%", width: "100%", background: "#e8e4de" }}
     >
       <TileLayer
         url={TILE_URL}
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         {...(OFFLINE_TILES ? { crossOrigin: false } : {})}
+        eventHandlers={{
+          tileerror: (e) => {
+            // Hide tiles that failed to load — the gray container background
+            // shows through cleanly instead of showing a broken-image icon.
+            const img = e.tile as HTMLImageElement;
+            img.style.display = "none";
+          },
+        }}
       />
 
       {/* Use FlyTo when the user has searched a location; otherwise auto-fit events */}
